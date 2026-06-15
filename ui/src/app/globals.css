@@ -1,0 +1,102 @@
+/* src/app/globals.css */
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Space+Grotesk:wght@300;400;500;600&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* AMOLED core */
+  --black:        #000000;
+  --surface-1:    #0a0a0a;
+  --surface-2:    #111111;
+  --surface-3:    #1a1a1a;
+  --border:       #222222;
+  --border-bright:#333333;
+
+  /* Text */
+  --text-primary:   #f0f0f0;
+  --text-secondary: #888888;
+  --text-muted:     #444444;
+
+  /* Accent — single sharp green, terminal-style */
+  --accent:         #00ff88;
+  --accent-dim:     #00ff8822;
+  --accent-border:  #00ff8844;
+
+  /* Status */
+  --status-open:     #3b82f6;
+  --status-kitchen:  #f59e0b;
+  --status-ready:    #00ff88;
+  --status-done:     #444444;
+  --status-void:     #ef4444;
+
+  /* Font */
+  --font-mono:  'JetBrains Mono', monospace;
+  --font-body:  'Space Grotesk', sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  background: var(--black);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;           /* POS app — no page scroll */
+  height: 100dvh;
+}
+
+/* Scrollable regions */
+.scrollable {
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-bright) transparent;
+}
+.scrollable::-webkit-scrollbar { width: 4px; }
+.scrollable::-webkit-scrollbar-thumb { background: var(--border-bright); border-radius: 2px; }
+
+/* Mono label utility */
+.mono { font-family: var(--font-mono); }
+
+/* Accent pulse for live indicators */
+@keyframes pulse-accent {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.4; }
+}
+.pulse { animation: pulse-accent 2s ease-in-out infinite; }
+
+/* Slide-in from right */
+@keyframes slide-in-right {
+  from { transform: translateX(100%); opacity: 0; }
+  to   { transform: translateX(0);    opacity: 1; }
+}
+.slide-in { animation: slide-in-right 0.18s ease-out; }
+
+/* Fade up */
+@keyframes fade-up {
+  from { transform: translateY(8px); opacity: 0; }
+  to   { transform: translateY(0);   opacity: 1; }
+}
+.fade-up { animation: fade-up 0.15s ease-out; }
+
+/* Scanline texture overlay */
+.scanlines::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0,0,0,0.08) 2px,
+    rgba(0,0,0,0.08) 4px
+  );
+}

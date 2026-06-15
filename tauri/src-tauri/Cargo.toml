@@ -1,0 +1,53 @@
+[package]
+name    = "tauri"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "tauri_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[dependencies]
+# Tauri v2 core
+tauri = { version = "2", features = [] }
+tauri-plugin-stronghold = "2"
+
+# SQLite
+rusqlite    = { version = "0.31", features = ["bundled"] }
+r2d2        = "0.8"
+r2d2_sqlite = "0.24"
+
+# Async
+tokio = { version = "1", features = ["full"] }
+
+# ID generation
+cuid2 = "0.1"
+
+# Serde
+serde      = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Error handling
+thiserror = "1"
+
+# Auth
+bcrypt       = "0.15"
+jsonwebtoken = "9"
+
+# Argon2 (key derivation for Stronghold)
+argon2 = "0.5"
+
+# HTTP (sync engine only — no frontend HTTP)
+reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
+
+[profile.release]
+opt-level     = 3
+lto           = true
+codegen-units = 1
+strip         = true
+
+[profile.dev]
+opt-level = 0
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }

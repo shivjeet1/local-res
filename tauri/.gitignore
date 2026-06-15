@@ -1,0 +1,16 @@
+# Dependencies
+node_modules/
+
+# Tauri / Rust build output
+src-tauri/target/
+src-tauri/WixTools/
+
+# Generated
+src-tauri/gen/
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db

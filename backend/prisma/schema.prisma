@@ -1,0 +1,205 @@
+// prisma/schema.prisma
+// Multi-tenant POS. Every table scoped by restaurantId.
+// CUID2 PKs everywhere. Soft deletes. No auto-increment.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────
+// TENANT
+// ─────────────────────────────────────────
+
+model Restaurant {
+  id        String   @id
+  name      String
+  slug      String   @unique
+  timezone  String   @default("Asia/Kolkata")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt       @map("updated_at")
+  deletedAt DateTime?                 @map("deleted_at")
+
+  users      User[]
+  categories Category[]
+  products   Product[]
+  tables     RestaurantTable[]
+  orders     Order[]
+  devices    Device[]
+
+  @@map("restaurants")
+}
+
+// ─────────────────────────────────────────
+// AUTH
+// ─────────────────────────────────────────
+
+enum UserRole {
+  ADMIN
+  STAFF
+  KITCHEN
+}
+
+model User {
+  id           String    @id
+  restaurantId String    @map("restaurant_id")
+  name         String
+  email        String    @unique
+  passwordHash String    @map("password_hash")
+  role         UserRole  @default(STAFF)
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt       @map("updated_at")
+  deletedAt    DateTime?                  @map("deleted_at")
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id])
+  orders     Order[]
+
+  @@index([restaurantId])
+  @@index([deletedAt])
+  @@map("users")
+}
+
+model Device {
+  id           String    @id             // deviceId from Tauri
+  restaurantId String    @map("restaurant_id")
+  label        String                    // e.g. "Counter 1"
+  lastSeenAt   DateTime? @map("last_seen_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt       @map("updated_at")
+  deletedAt    DateTime?                  @map("deleted_at")
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id])
+
+  @@index([restaurantId])
+  @@map("devices")
+}
+
+// ─────────────────────────────────────────
+// MENU
+// ─────────────────────────────────────────
+
+model Category {
+  id           String    @id
+  restaurantId String    @map("restaurant_id")
+  name         String
+  sortOrder    Int       @default(0) @map("sort_order")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt       @map("updated_at")
+  deletedAt    DateTime?                  @map("deleted_at")
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id])
+  products   Product[]
+
+  @@index([restaurantId])
+  @@map("categories")
+}
+
+model Product {
+  id           String    @id
+  restaurantId String    @map("restaurant_id")
+  categoryId   String?   @map("category_id")
+  name         String
+  description  String?
+  priceCents   Int       @map("price_cents")
+  taxRatePct   Float     @default(0) @map("tax_rate_pct")
+  isAvailable  Boolean   @default(true) @map("is_available")
+  imageUrl     String?   @map("image_url")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt       @map("updated_at")
+  deletedAt    DateTime?                  @map("deleted_at")
+
+  restaurant Restaurant  @relation(fields: [restaurantId], references: [id])
+  category   Category?   @relation(fields: [categoryId], references: [id])
+  orderItems OrderItem[]
+
+  @@index([restaurantId])
+  @@index([categoryId])
+  @@map("products")
+}
+
+// ─────────────────────────────────────────
+// TABLES
+// ─────────────────────────────────────────
+
+model RestaurantTable {
+  id           String    @id
+  restaurantId String    @map("restaurant_id")
+  label        String
+  capacity     Int       @default(4)
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt       @map("updated_at")
+  deletedAt    DateTime?                  @map("deleted_at")
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id])
+  orders     Order[]
+
+  @@index([restaurantId])
+  @@map("restaurant_tables")
+}
+
+// ─────────────────────────────────────────
+// ORDERS
+// ─────────────────────────────────────────
+
+enum OrderStatus {
+  OPEN
+  SENT_TO_KITCHEN
+  READY
+  COMPLETED
+  VOIDED
+}
+
+model Order {
+  id            String      @id
+  restaurantId  String      @map("restaurant_id")
+  tableId       String?     @map("table_id")
+  userId        String      @map("user_id")
+  deviceId      String      @map("device_id")
+  status        OrderStatus @default(OPEN)
+  notes         String?
+  subtotalCents Int         @default(0) @map("subtotal_cents")
+  taxCents      Int         @default(0) @map("tax_cents")
+  totalCents    Int         @default(0) @map("total_cents")
+  paidAt        DateTime?   @map("paid_at")
+  createdAt     DateTime    @default(now()) @map("created_at")
+  updatedAt     DateTime    @updatedAt       @map("updated_at")
+  deletedAt     DateTime?                    @map("deleted_at")
+  syncedAt      DateTime?   @map("synced_at")
+
+  restaurant Restaurant      @relation(fields: [restaurantId], references: [id])
+  table      RestaurantTable? @relation(fields: [tableId], references: [id])
+  user       User             @relation(fields: [userId], references: [id])
+  items      OrderItem[]
+
+  @@index([restaurantId])
+  @@index([status])
+  @@index([updatedAt])   // sync pull uses this
+  @@index([deviceId])
+  @@map("orders")
+}
+
+model OrderItem {
+  id             String    @id
+  restaurantId   String    @map("restaurant_id")
+  orderId        String    @map("order_id")
+  productId      String    @map("product_id")
+  deviceId       String    @map("device_id")
+  quantity       Int       @default(1)
+  unitPriceCents Int       @map("unit_price_cents")
+  notes          String?
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt       @map("updated_at")
+  deletedAt      DateTime?                  @map("deleted_at")
+  syncedAt       DateTime? @map("synced_at")
+
+  order   Order   @relation(fields: [orderId], references: [id])
+  product Product @relation(fields: [productId], references: [id])
+
+  @@index([orderId])
+  @@index([restaurantId])
+  @@map("order_items")
+}

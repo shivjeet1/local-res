@@ -1,0 +1,17 @@
+{
+  "$schema": "../node_modules/@tauri-apps/cli/schema/acl/capability.json",
+  "identifier": "default",
+  "description": "POS Terminal default capabilities",
+  "platforms": ["linux", "macOS", "windows"],
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "stronghold:default",
+    "core:path:default",
+    "core:window:default",
+    "core:app:default",
+    "core:resources:default",
+    "core:menu:default",
+    "core:tray:default"
+  ]
+}
