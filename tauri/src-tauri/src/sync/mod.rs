@@ -8,7 +8,7 @@ use rusqlite::params;
 use serde::{Deserialize, Serialize};
 use crate::db::{DbPool, now_ms};
 
-const CLOUD_BASE: &str = "https://api.yourpos.app";
+pub(crate) const CLOUD_BASE: &str = "https://api.yourpos.app";
 const BATCH_SIZE: usize = 200;
 
 // ── Push ──────────────────────────────────────────────────────────────────

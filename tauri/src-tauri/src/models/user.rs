@@ -33,7 +33,7 @@ impl TryFrom<String> for UserRole {
 }
 
 /// Outbound — never exposes password_hash
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct User {
     pub id:            String,
@@ -58,5 +58,5 @@ pub struct AuthPayload {
 #[serde(rename_all = "camelCase")]
 pub struct AuthResult {
     pub user:  User,
-    pub token: String,   // stored in OS Keychain, returned once
+    pub token: Option<String>,   // None when logged in offline without cloud connectivity
 }

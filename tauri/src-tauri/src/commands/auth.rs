@@ -1,14 +1,17 @@
 // src-tauri/src/commands/auth.rs
-// JWT stored in OS Keychain via tauri-plugin-stronghold.
-// Never touches localStorage.
+// Session held in-memory for the process lifetime (see auth_state.rs for why
+// this isn't the full Stronghold vault yet). Local login always works
+// offline; a cloud JWT is fetched best-effort so the sync engine has
+// something to authenticate with once the device is online.
 
 use tauri::State;
 use bcrypt::verify;
+use crate::auth_state::{AuthState, SessionInfo};
 use crate::db::{users as db, DbPool};
 use crate::error::ApiResponse;
 use crate::models::user::{AuthPayload, User};
+use crate::sync::CLOUD_BASE;
 
-const KEYCHAIN_KEY: &str = "pos_jwt";
 type Res<T> = Result<ApiResponse<T>, String>;
 
 /// invoke('auth_user', { payload: { email, password } })
@@ -16,8 +19,8 @@ type Res<T> = Result<ApiResponse<T>, String>;
 pub async fn auth_user(
     payload: AuthPayload,
     pool: State<'_, DbPool>,
-    _app: tauri::AppHandle,
-) -> Res<User> {
+    auth: State<'_, AuthState>,
+) -> Res<crate::models::user::AuthResult> {
     if payload.email.trim().is_empty() || payload.password.is_empty() {
         return Ok(ApiResponse::err("Email and password required"));
     }
@@ -43,61 +46,89 @@ pub async fn auth_user(
         return Ok(ApiResponse::err("Invalid credentials"));
     }
 
-    // Build JWT — store in Stronghold (stubbed; swap with real stronghold vault write)
-    let _token = build_local_jwt(&user);
-    // store_token_in_keychain(&app, &token)?;  // enable when stronghold fully wired
+    let jwt = fetch_cloud_jwt(&payload.email, &payload.password).await;
 
-    Ok(ApiResponse::ok(user))
+    auth.set(SessionInfo {
+        user: user.clone(),
+        restaurant_id: user.restaurant_id.clone(),
+        device_id: device_id_for_this_machine(),
+        jwt: jwt.clone(),
+    });
+
+    Ok(ApiResponse::ok(crate::models::user::AuthResult {
+        user,
+        token: jwt,
+    }))
 }
 
 /// invoke('get_current_user')
-/// Reads JWT from Stronghold, decodes, returns User.
+/// Reads the in-memory session set by a prior auth_user call.
 #[tauri::command]
-pub async fn get_current_user(
-    pool: State<'_, DbPool>,
-    _app: tauri::AppHandle,
-) -> Res<User> {
-    // Stub — real impl reads from Stronghold vault and verifies JWT
-    // let token = read_from_keychain(&app)?;
-    // let claims = verify_jwt(&token)?;
-    // Then fetch user by claims.sub from DB
-    let _ = pool;
-    Ok(ApiResponse::err("No active session"))
+pub async fn get_current_user(auth: State<'_, AuthState>) -> Res<User> {
+    match auth.get() {
+        Some(session) => Ok(ApiResponse::ok(session.user)),
+        None => Ok(ApiResponse::err("No active session")),
+    }
 }
 
 /// invoke('logout')
 #[tauri::command]
-pub async fn logout(_app: tauri::AppHandle) -> Res<()> {
-    // Real impl: delete token from Stronghold vault
+pub async fn logout(auth: State<'_, AuthState>) -> Res<()> {
+    auth.clear();
     Ok(ApiResponse::ok(()))
 }
 
-// ── JWT helpers ───────────────────────────────────────────────────────────
+// ── Cloud JWT fetch (best-effort) ────────────────────────────────────────
 
-use serde::{Deserialize, Serialize};
-
-#[derive(Debug, Serialize, Deserialize)]
-struct Claims {
-    sub:           String,
-    restaurant_id: String,
-    role:          String,
-    exp:           i64,
+#[derive(serde::Deserialize)]
+struct CloudLoginData {
+    token: String,
 }
 
-fn build_local_jwt(user: &User) -> String {
-    let claims = Claims {
-        sub:           user.id.clone(),
-        restaurant_id: user.restaurant_id.clone(),
-        role:          format!("{:?}", user.role),
-        exp:           now_secs() + 86_400 * 7,
-    };
-    // Production: jsonwebtoken::encode(&Header::default(), &claims, &EncodingKey::from_secret(secret))
-    format!("JWT_STUB.{}", serde_json::to_string(&claims).unwrap_or_default())
+#[derive(serde::Deserialize)]
+struct CloudLoginResponse {
+    success: bool,
+    data: Option<CloudLoginData>,
 }
 
-fn now_secs() -> i64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs() as i64
+/// Calls the real backend's POST /auth/login to get a token signed with the
+/// backend's JWT_SECRET — the only kind of token /sync/push and /sync/pull
+/// will actually accept. Returns None on any failure (offline, wrong creds
+/// server-side, backend down) rather than erroring the whole login, since
+/// local SQLite auth is the source of truth for whether this device's user
+/// can use this terminal.
+async fn fetch_cloud_jwt(email: &str, password: &str) -> Option<String> {
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(5))
+        .build()
+        .ok()?;
+
+    let res = client
+        .post(format!("{CLOUD_BASE}/auth/login"))
+        .json(&serde_json::json!({ "email": email, "password": password }))
+        .send()
+        .await
+        .ok()?;
+
+    if !res.status().is_success() {
+        return None;
+    }
+
+    let body: CloudLoginResponse = res.json().await.ok()?;
+    if !body.success {
+        return None;
+    }
+    body.data.map(|d| d.token)
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────
+
+/// Stand-in for a real per-installation device id. Production: generate
+/// once on first run (e.g. a UUID) and persist it in the app data dir, so it
+/// survives restarts and uniquely identifies this physical terminal to the
+/// sync engine. Out of scope for this fix — push_dirty/pull_from_cloud and
+/// every order command already take device_id as an explicit argument from
+/// the frontend, so this only matters for the ticker's automatic calls.
+fn device_id_for_this_machine() -> String {
+    "device_local_01".to_string()
 }
