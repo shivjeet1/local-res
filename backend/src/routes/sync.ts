@@ -7,6 +7,7 @@ import { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { prisma } from "../prisma/client.js";
 import { requireAuth } from "../auth/auth.service.js";
+import { broadcastToRestaurant } from "../realtime.js";
 
 // ── Shared row schemas ──────────────────────────────────────────────────────
 
@@ -222,6 +223,13 @@ export async function syncRoutes(app: FastifyInstance) {
       create: { id: body.data.deviceId, restaurantId, label: body.data.deviceId, lastSeenAt: new Date() },
       update: { lastSeenAt: new Date() },
     });
+
+    // Only nudge other devices if something was actually written — a push
+    // with nothing new (e.g. an idle device's periodic sync) shouldn't
+    // trigger every other terminal to pull for no reason.
+    if (syncedIds.length > 0) {
+      broadcastToRestaurant(restaurantId, "order", body.data.deviceId);
+    }
 
     return reply.send({
       success: true,

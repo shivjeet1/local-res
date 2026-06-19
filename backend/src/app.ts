@@ -2,11 +2,13 @@
 import Fastify from "fastify";
 import cors from "@fastify/cors";
 import rateLimit from "@fastify/rate-limit";
+import websocket from "@fastify/websocket";
 import { authRoutes }    from "./routes/auth.js";
 import { menuRoutes }    from "./routes/menu.js";
 import { orderRoutes }   from "./routes/orders.js";
 import { syncRoutes }    from "./routes/sync.js";
 import { adminRoutes }   from "./routes/admin.js";
+import { realtimeRoutes } from "./routes/realtime.js";
 
 export async function buildApp() {
   const app = Fastify({ logger: process.env.NODE_ENV !== "test" });
@@ -24,6 +26,8 @@ export async function buildApp() {
     timeWindow: "1 minute",
   });
 
+  await app.register(websocket);
+
   // ── Health ────────────────────────────────────────────────────────────────
 
   app.get("/health", async () => ({ status: "ok", ts: Date.now() }));
@@ -35,6 +39,7 @@ export async function buildApp() {
   await app.register(orderRoutes, { prefix: "/orders" });
   await app.register(syncRoutes,  { prefix: "/sync" });
   await app.register(adminRoutes, { prefix: "/admin" });
+  await app.register(realtimeRoutes);
 
   // ── Global error handler ─────────────────────────────────────────────────
 

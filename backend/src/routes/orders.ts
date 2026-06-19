@@ -4,6 +4,7 @@ import { z } from "zod";
 import { prisma } from "../prisma/client.js";
 import { requireAuth, requireRole } from "../auth/auth.service.js";
 import { createId } from "@paralleldrive/cuid2";
+import { broadcastToRestaurant } from "../realtime.js";
 
 const OrderStatusSchema = z.enum(["OPEN","SENT_TO_KITCHEN","READY","COMPLETED","VOIDED"]);
 
@@ -96,6 +97,11 @@ export async function orderRoutes(app: FastifyInstance) {
       include: { items: true },
     });
 
+    // Push channel: notify every other connected device for this restaurant
+    // that an order changed, so kitchen/staff screens pull immediately
+    // instead of waiting on their own 30s timer.
+    broadcastToRestaurant(restaurantId, "order", deviceId);
+
     return reply.code(201).send({ success: true, data: order });
   });
 
@@ -125,6 +131,9 @@ export async function orderRoutes(app: FastifyInstance) {
       },
     });
     if (updated.count === 0) return reply.code(404).send({ error: "Not found" });
+
+    broadcastToRestaurant(restaurantId, "order");
+
     return reply.send({ success: true });
   });
 
@@ -142,6 +151,9 @@ export async function orderRoutes(app: FastifyInstance) {
         data:  { deletedAt: new Date(), status: "VOIDED" },
       }),
     ]);
+
+    broadcastToRestaurant(restaurantId, "order");
+
     return reply.send({ success: true });
   });
 }
