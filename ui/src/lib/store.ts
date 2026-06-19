@@ -11,8 +11,10 @@ interface SessionSlice {
   user:         User | null;
   restaurantId: string | null;
   deviceId:     string;
+  jwt:          string | null;
   setUser:        (u: User | null) => void;
   setRestaurant:  (id: string) => void;
+  setJwt:         (token: string | null) => void;
   clearSession:   () => void;
 }
 
@@ -68,9 +70,11 @@ export const usePosStore = create<PosStore>()(
       user:         null,
       restaurantId: null,
       deviceId:     generateDeviceId(),
+      jwt:          null,
       setUser:        (user)         => set({ user }),
       setRestaurant:  (restaurantId) => set({ restaurantId }),
-      clearSession:   ()             => set({ user: null, restaurantId: null, draftItems: [] }),
+      setJwt:         (jwt)          => set({ jwt }),
+      clearSession:   ()             => set({ user: null, restaurantId: null, jwt: null, draftItems: [] }),
 
       // Draft
       draftTableId: null,

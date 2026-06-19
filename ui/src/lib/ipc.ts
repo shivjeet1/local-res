@@ -63,6 +63,8 @@ export interface CreateProductPayload {
 
 export interface SyncResult { pushed: number; pulled: number; }
 
+export interface AuthResult { user: User; token: string | null; }
+
 // ── ApiResponse envelope ──────────────────────────────────────────────────────
 
 interface ApiResponse<T> {
@@ -81,7 +83,7 @@ async function cmd<T>(command: string, args?: Record<string, unknown>): Promise<
 // ── Public API ────────────────────────────────────────────────────────────────
 
 export const authUser       = (email: string, password: string) =>
-  cmd<User>("auth_user", { payload: { email, password } });
+  cmd<AuthResult>("auth_user", { payload: { email, password } });
 export const getCurrentUser = () => cmd<User>("get_current_user");
 export const logout         = () => cmd<void>("logout");
 
@@ -312,7 +314,10 @@ function devMock<T>(command: string, args: any): Promise<T> {
       if (!found) return r(err("Invalid credentials"));
       const { password: _pw, ...safeUser } = found;
       mutate(s => { s.session = safeUser; });
-      return r(ok(safeUser));
+      // No real backend JWT in dev-mock mode — token is null, realtime WS
+      // connection simply won't establish (no backend running), which is fine
+      // since the BroadcastChannel path handles cross-tab sync in this mode.
+      return r(ok({ user: safeUser, token: null }));
     }
 
     case "get_current_user":
