@@ -115,10 +115,24 @@ export const centsToDisplay = (cents: number, currency = "₹"): string =>
   `${currency}${(cents / 100).toFixed(2)}`;
 
 // ── Dev mock ──────────────────────────────────────────────────────────────────
+//
+// In browser-dev mode (no Tauri backend) this is the *only* thing standing in
+// for the database. Each browser tab loads its own copy of this module, so any
+// state declared as a plain `let`/module variable is private to that one tab —
+// an order created in the "staff" tab would never be visible from "kitchen".
+//
+// Fix: back the mutable state with `localStorage` (shared by every tab on the
+// same origin) and broadcast a message on every write via `BroadcastChannel` so
+// other open tabs know to reload from storage immediately, instead of waiting
+// on a `storage` event (which is unreliable cross-browser timing-wise and never
+// fires in the *writing* tab itself).
 
 const MOCK_RID = "mock_restaurant_01";
 const MOCK_DID = "mock_device_01";
 const ts       = () => Date.now();
+
+const STORAGE_KEY   = "local_res_dev_mock_v1";
+const CHANNEL_NAME  = "local_res_dev_mock";
 
 // ── All seed users (matches backend/src/prisma/seed.ts) ──────────────────
 const MOCK_USERS: (User & { password: string })[] = [
@@ -142,16 +156,16 @@ const MOCK_USERS: (User & { password: string })[] = [
   },
 ];
 
-let MOCK_SESSION: User | null = null;
-
-const MOCK_CATEGORIES: Category[] = [
+// Static seed fixtures — never mutated in place, so these don't need to live
+// in shared storage. Per-tab copies of these are fine because they're constant.
+const SEED_CATEGORIES: Category[] = [
   { id: "cat1", restaurantId: MOCK_RID, name: "Starters",  sortOrder: 1, createdAt: ts(), updatedAt: ts(), deletedAt: null },
   { id: "cat2", restaurantId: MOCK_RID, name: "Mains",     sortOrder: 2, createdAt: ts(), updatedAt: ts(), deletedAt: null },
   { id: "cat3", restaurantId: MOCK_RID, name: "Drinks",    sortOrder: 3, createdAt: ts(), updatedAt: ts(), deletedAt: null },
   { id: "cat4", restaurantId: MOCK_RID, name: "Desserts",  sortOrder: 4, createdAt: ts(), updatedAt: ts(), deletedAt: null },
 ];
 
-const MOCK_PRODUCTS: Product[] = [
+const SEED_PRODUCTS: Product[] = [
   { id: "p1", restaurantId: MOCK_RID, categoryId: "cat1", name: "Garlic Bread",        priceCents: 18000, taxRatePct: 5,  isAvailable: true, description: null, imageUrl: null, createdAt: ts(), updatedAt: ts(), deletedAt: null },
   { id: "p2", restaurantId: MOCK_RID, categoryId: "cat1", name: "Soup of the Day",     priceCents: 22000, taxRatePct: 5,  isAvailable: true, description: null, imageUrl: null, createdAt: ts(), updatedAt: ts(), deletedAt: null },
   { id: "p3", restaurantId: MOCK_RID, categoryId: "cat1", name: "Bruschetta",          priceCents: 24000, taxRatePct: 5,  isAvailable: true, description: null, imageUrl: null, createdAt: ts(), updatedAt: ts(), deletedAt: null },
@@ -166,7 +180,111 @@ const MOCK_PRODUCTS: Product[] = [
   { id:"p12", restaurantId: MOCK_RID, categoryId: "cat4", name: "Brownie + Ice Cream", priceCents: 18000, taxRatePct: 5,  isAvailable: true, description: null, imageUrl: null, createdAt: ts(), updatedAt: ts(), deletedAt: null },
 ];
 
-let MOCK_ORDERS: Order[] = [];
+// ── Shared, persisted, cross-tab mock state ────────────────────────────────
+//
+// Everything that can be mutated (session, orders, products — since
+// create/delete product mutate this list) lives here and is read/written
+// through `loadState`/`saveState` so every tab agrees on the same data.
+
+interface MockState {
+  session:  User | null;
+  orders:   Order[];
+  products: Product[];
+}
+
+function defaultState(): MockState {
+  return { session: null, orders: [], products: [...SEED_PRODUCTS] };
+}
+
+function loadState(): MockState {
+  if (typeof window === "undefined") return defaultState();
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    if (!raw) return defaultState();
+    const parsed = JSON.parse(raw) as Partial<MockState>;
+    return {
+      session:  parsed.session  ?? null,
+      orders:   parsed.orders   ?? [],
+      products: parsed.products ?? [...SEED_PRODUCTS],
+    };
+  } catch {
+    return defaultState();
+  }
+}
+
+function saveState(state: MockState) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } catch {
+    // localStorage can throw in private-browsing / quota-exceeded cases.
+    // Falling back to in-memory-only for this tab is better than crashing.
+  }
+  // Tell every other open tab "state changed, reload it" right away.
+  // (A `storage` event also fires in other tabs, but BroadcastChannel is more
+  // consistent across browsers and lets us notify listeners explicitly.)
+  getChannel()?.postMessage({ type: "state-changed" });
+}
+
+let _channel: BroadcastChannel | null | undefined;
+function getChannel(): BroadcastChannel | null {
+  if (_channel !== undefined) return _channel;
+  if (typeof window === "undefined" || typeof BroadcastChannel === "undefined") {
+    _channel = null;
+    return _channel;
+  }
+  _channel = new BroadcastChannel(CHANNEL_NAME);
+  return _channel;
+}
+
+// In-memory cache of the current tab's view of state. Reloaded from
+// localStorage on startup and whenever another tab signals a change.
+let MOCK_STATE: MockState = loadState();
+
+type MockChangeListener = () => void;
+const changeListeners = new Set<MockChangeListener>();
+
+/**
+ * Subscribe to be notified whenever mock data changes — either because this
+ * tab wrote something, or because another tab did and broadcast it. Wired
+ * into TanStack Query (see queries.ts) so screens refetch immediately rather
+ * than waiting for the next polling interval.
+ */
+export function onDevMockChange(listener: MockChangeListener): () => void {
+  changeListeners.add(listener);
+  return () => changeListeners.delete(listener);
+}
+
+function notifyListeners() {
+  for (const l of changeListeners) l();
+}
+
+if (typeof window !== "undefined") {
+  // Another tab wrote new state — reload ours and notify subscribers.
+  getChannel()?.addEventListener("message", (e: MessageEvent) => {
+    if (e.data?.type === "state-changed") {
+      MOCK_STATE = loadState();
+      notifyListeners();
+    }
+  });
+
+  // Fallback/extra signal: native storage event (fires in *other* tabs only;
+  // belt-and-suspenders alongside BroadcastChannel).
+  window.addEventListener("storage", (e) => {
+    if (e.key === STORAGE_KEY) {
+      MOCK_STATE = loadState();
+      notifyListeners();
+    }
+  });
+}
+
+/** Read-modify-write helper: pass a function that mutates the draft state. */
+function mutate<R>(fn: (state: MockState) => R): R {
+  const result = fn(MOCK_STATE);
+  saveState(MOCK_STATE);
+  notifyListeners();
+  return result;
+}
 
 function ok<T>(data: T): ApiResponse<T> {
   return { success: true, data, error: null, meta: null };
@@ -179,9 +297,9 @@ function makeId() {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function devMock<T>(command: string, args: any): Promise<ApiResponse<T>> {
+function devMock<T>(command: string, args: any): Promise<T> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const r = (v: any) => Promise.resolve(v as ApiResponse<T>);
+  const r = (v: any) => Promise.resolve(v as T);
 
   switch (command) {
 
@@ -193,24 +311,24 @@ function devMock<T>(command: string, args: any): Promise<ApiResponse<T>> {
       );
       if (!found) return r(err("Invalid credentials"));
       const { password: _pw, ...safeUser } = found;
-      MOCK_SESSION = safeUser;
+      mutate(s => { s.session = safeUser; });
       return r(ok(safeUser));
     }
 
     case "get_current_user":
-      return MOCK_SESSION
-        ? r(ok(MOCK_SESSION))
+      return MOCK_STATE.session
+        ? r(ok(MOCK_STATE.session))
         : r(err("No active session"));
 
     case "logout":
-      MOCK_SESSION = null;
+      mutate(s => { s.session = null; });
       return r(ok(undefined));
 
     // ── Menu ────────────────────────────────────────────────────────────────
     case "fetch_menu":
       return r(ok({
-        categories: MOCK_CATEGORIES.filter(c => !c.deletedAt),
-        products:   MOCK_PRODUCTS.filter(p => !p.deletedAt),
+        categories: SEED_CATEGORIES.filter(c => !c.deletedAt),
+        products:   MOCK_STATE.products.filter(p => !p.deletedAt),
       }));
 
     case "create_product": {
@@ -222,29 +340,32 @@ function devMock<T>(command: string, args: any): Promise<ApiResponse<T>> {
         taxRatePct: p.taxRatePct ?? 0, isAvailable: true,
         imageUrl: null, createdAt: ts(), updatedAt: ts(), deletedAt: null,
       };
-      MOCK_PRODUCTS.push(newP);
+      mutate(s => { s.products.push(newP); });
       return r(ok(newP));
     }
 
     case "delete_product": {
-      const idx = MOCK_PRODUCTS.findIndex(p => p.id === args?.id);
-      if (idx >= 0) MOCK_PRODUCTS[idx]!.deletedAt = ts();
-      return r(ok(undefined));
+      const found = mutate(s => {
+        const p = s.products.find(p => p.id === args?.id);
+        if (p) p.deletedAt = ts();
+        return p ?? null;
+      });
+      return found ? r(ok(undefined)) : r(err("Product not found"));
     }
 
     // ── Orders ──────────────────────────────────────────────────────────────
     case "list_open_orders":
       return r(ok(
-        MOCK_ORDERS.filter(o => !["COMPLETED","VOIDED"].includes(o.status) && !o.deletedAt)
+        MOCK_STATE.orders.filter(o => !["COMPLETED","VOIDED"].includes(o.status) && !o.deletedAt)
       ));
 
     case "get_order": {
-      const o = MOCK_ORDERS.find(o => o.id === args?.id);
+      const o = MOCK_STATE.orders.find(o => o.id === args?.id);
       return o ? r(ok(o)) : r(err("Order not found"));
     }
 
     case "save_order_locally": {
-      const userId = MOCK_SESSION?.id ?? "mock_user_admin";
+      const userId = MOCK_STATE.session?.id ?? "mock_user_admin";
       const order: Order = {
         id: makeId(), restaurantId: MOCK_RID,
         tableId:  args?.payload?.tableId ?? null,
@@ -254,57 +375,68 @@ function devMock<T>(command: string, args: any): Promise<ApiResponse<T>> {
         paidAt: null, createdAt: ts(), updatedAt: ts(),
         deletedAt: null, syncedAt: null, items: [],
       };
-      MOCK_ORDERS.push(order);
+      mutate(s => { s.orders.push(order); });
       return r(ok({ ...order }));
     }
 
     case "add_order_item": {
       const { orderId, productId, quantity, notes } = args?.payload ?? {};
-      const order = MOCK_ORDERS.find(o => o.id === orderId);
-      if (!order) return r(err("Order not found"));
-      const product = MOCK_PRODUCTS.find(p => p.id === productId);
-      if (!product) return r(err("Product not found"));
+      const result = mutate(s => {
+        const order = s.orders.find(o => o.id === orderId);
+        if (!order) return { ok: false, error: "Order not found" } as const;
+        const product = s.products.find(p => p.id === productId);
+        if (!product) return { ok: false, error: "Product not found" } as const;
 
-      const existing = order.items.find(i => i.productId === productId && !i.deletedAt);
-      if (existing) {
-        existing.quantity += quantity;
-        existing.updatedAt = ts();
-      } else {
-        order.items.push({
-          id: makeId(), restaurantId: MOCK_RID,
-          orderId, productId, deviceId: MOCK_DID,
-          quantity, unitPriceCents: product.priceCents,
-          notes: notes ?? null, createdAt: ts(), updatedAt: ts(),
-          deletedAt: null, syncedAt: null,
-        });
-      }
-      recalcTotals(order);
-      return r(ok({ ...order, items: [...order.items] }));
+        const existing = order.items.find(i => i.productId === productId && !i.deletedAt);
+        if (existing) {
+          existing.quantity += quantity;
+          existing.updatedAt = ts();
+        } else {
+          order.items.push({
+            id: makeId(), restaurantId: MOCK_RID,
+            orderId, productId, deviceId: MOCK_DID,
+            quantity, unitPriceCents: product.priceCents,
+            notes: notes ?? null, createdAt: ts(), updatedAt: ts(),
+            deletedAt: null, syncedAt: null,
+          });
+        }
+        recalcTotals(order, s.products);
+        return { ok: true, order: { ...order, items: [...order.items] } } as const;
+      });
+      return result.ok ? r(ok(result.order)) : r(err(result.error));
     }
 
     case "remove_order_item": {
       const { orderId, itemId } = args ?? {};
-      const order = MOCK_ORDERS.find(o => o.id === orderId);
-      if (!order) return r(err("Order not found"));
-      const item = order.items.find(i => i.id === itemId);
-      if (item) item.deletedAt = ts();
-      recalcTotals(order);
-      return r(ok({ ...order, items: [...order.items] }));
+      const result = mutate(s => {
+        const order = s.orders.find(o => o.id === orderId);
+        if (!order) return { ok: false, error: "Order not found" } as const;
+        const item = order.items.find(i => i.id === itemId);
+        if (item) item.deletedAt = ts();
+        recalcTotals(order, s.products);
+        return { ok: true, order: { ...order, items: [...order.items] } } as const;
+      });
+      return result.ok ? r(ok(result.order)) : r(err(result.error));
     }
 
     case "update_order_status": {
       const { orderId, status } = args?.payload ?? {};
-      const order = MOCK_ORDERS.find(o => o.id === orderId);
-      if (!order) return r(err("Order not found"));
-      order.status    = status;
-      order.updatedAt = ts();
-      if (status === "COMPLETED") order.paidAt = ts();
-      return r(ok({ ...order, items: [...order.items] }));
+      const result = mutate(s => {
+        const order = s.orders.find(o => o.id === orderId);
+        if (!order) return { ok: false, error: "Order not found" } as const;
+        order.status    = status;
+        order.updatedAt = ts();
+        if (status === "COMPLETED") order.paidAt = ts();
+        return { ok: true, order: { ...order, items: [...order.items] } } as const;
+      });
+      return result.ok ? r(ok(result.order)) : r(err(result.error));
     }
 
     case "void_order": {
-      const order = MOCK_ORDERS.find(o => o.id === args?.orderId);
-      if (order) { order.status = "VOIDED"; order.deletedAt = ts(); }
+      mutate(s => {
+        const order = s.orders.find(o => o.id === args?.orderId);
+        if (order) { order.status = "VOIDED"; order.deletedAt = ts(); }
+      });
       return r(ok(undefined));
     }
 
@@ -316,11 +448,11 @@ function devMock<T>(command: string, args: any): Promise<ApiResponse<T>> {
   }
 }
 
-function recalcTotals(order: Order) {
+function recalcTotals(order: Order, products: Product[]) {
   const active = order.items.filter(i => !i.deletedAt);
   order.subtotalCents = active.reduce((s, i) => s + i.unitPriceCents * i.quantity, 0);
   order.taxCents = active.reduce((s, i) => {
-    const p = MOCK_PRODUCTS.find(p => p.id === i.productId);
+    const p = products.find(p => p.id === i.productId);
     return s + Math.floor(i.unitPriceCents * i.quantity * (p?.taxRatePct ?? 0) / 100);
   }, 0);
   order.totalCents = order.subtotalCents + order.taxCents;

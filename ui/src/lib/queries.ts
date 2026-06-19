@@ -1,5 +1,6 @@
 // src/lib/queries.ts — all TanStack Query hooks
 
+import { useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import * as ipc from "./ipc";
 import { usePosStore } from "./store";
@@ -10,6 +11,29 @@ export const QK = {
   order:       (id: string)  => ["order", id]            as const,
   currentUser: ()            => ["currentUser"]           as const,
 } as const;
+
+/**
+ * In dev/browser mode (no real Tauri backend) writes from *other* tabs are
+ * only visible via ipc.ts's BroadcastChannel/localStorage bridge — React
+ * Query has no way to know about them on its own. This hook subscribes to
+ * that bridge and invalidates the open-orders/menu queries the moment another
+ * tab changes something, instead of relying solely on refetchInterval.
+ * In Tauri mode `onDevMockChange` is a no-op subscription (never fires),
+ * so this is harmless on real hardware too — it's just inert there until
+ * step 4 (push notifications from the sync backend) hooks into the same path.
+ */
+export function useDevMockSync() {
+  const qc           = useQueryClient();
+  const restaurantId = usePosStore((s) => s.restaurantId);
+
+  useEffect(() => {
+    if (!restaurantId) return;
+    return ipc.onDevMockChange(() => {
+      qc.invalidateQueries({ queryKey: QK.openOrders(restaurantId) });
+      qc.invalidateQueries({ queryKey: QK.menu(restaurantId) });
+    });
+  }, [qc, restaurantId]);
+}
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 
