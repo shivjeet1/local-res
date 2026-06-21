@@ -7,18 +7,13 @@ mod db;
 mod error;
 mod models;
 mod sync;
+mod sync_trigger;
 
 use std::path::PathBuf;
 use std::time::Duration;
 use tauri::Manager;
 use auth_state::AuthState;
-
-/// A fire-and-forget channel: any command that mutates local data sends `()`
-/// here. A background task debounces the stream and fires a sync cycle soon
-/// after, rather than waiting up to 30 s for the periodic ticker. Capacity
-/// of 8 is enough — drops are fine, the next timer tick or the next write
-/// will trigger sync instead.
-pub struct SyncTrigger(pub tokio::sync::mpsc::Sender<()>);
+use sync_trigger::SyncTrigger;
 
 fn main() {
     tauri::Builder::default()

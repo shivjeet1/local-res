@@ -5,7 +5,7 @@ use crate::error::ApiResponse;
 use crate::models::order::{
     AddItemPayload, CreateOrderPayload, Order, UpdateOrderStatusPayload,
 };
-use crate::SyncTrigger;
+use crate::sync_trigger::SyncTrigger;
 
 type Res<T> = Result<ApiResponse<T>, String>;
 

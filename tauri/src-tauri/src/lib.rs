@@ -8,3 +8,4 @@ mod db;
 mod error;
 mod models;
 mod sync;
+mod sync_trigger;
