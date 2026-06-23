@@ -1,7 +1,7 @@
 "use client";
 // src/app/pos/kitchen/page.tsx — Kitchen Display System
 
-import { useOpenOrders, useUpdateStatusMutation, useMenu } from "@/lib/queries";
+import { useOpenOrders, useUpdateStatusMutation, useMenu, useTables } from "@/lib/queries";
 import { type Order, type OrderStatus } from "@/lib/ipc";
 
 const COLUMNS: { status: OrderStatus; label: string; color: string }[] = [
@@ -19,9 +19,11 @@ function elapsed(createdAt: number): string {
 function KitchenCard({
   order,
   productMap,
+  tableMap,
 }: {
   order: Order;
   productMap: Map<string, string>;
+  tableMap: Map<string, string>;
 }) {
   const updateStatus = useUpdateStatusMutation();
   const isIncoming   = order.status === "SENT_TO_KITCHEN";
@@ -29,6 +31,7 @@ function KitchenCard({
   const elapsedSecs  = Math.floor((Date.now() - order.createdAt) / 1000);
   const isUrgent     = isIncoming && elapsedSecs > 600;
   const activeItems  = order.items.filter(i => !i.deletedAt);
+  const tableLabel   = order.tableId ? tableMap.get(order.tableId) : null;
 
   return (
     <div className="p-4 transition-all"
@@ -46,7 +49,7 @@ function KitchenCard({
           {order.tableId && (
             <span className="mono text-[9px] px-1.5 py-0.5 text-[#888]"
                   style={{ border: "1px solid var(--border)" }}>
-              TBL
+              {tableLabel ?? "TBL"}
             </span>
           )}
         </div>
@@ -99,10 +102,14 @@ function KitchenCard({
 
 export default function KitchenPage() {
   const { data: allOrders = [], isLoading, dataUpdatedAt } = useOpenOrders();
-  const { data: menu } = useMenu();
+  const { data: menu }   = useMenu();
+  const { data: tables } = useTables();
 
   const productMap = new Map<string, string>(
     (menu?.products ?? []).map(p => [p.id, p.name])
+  );
+  const tableMap = new Map<string, string>(
+    (tables ?? []).map(t => [t.id, t.label])
   );
 
   return (
@@ -156,7 +163,7 @@ export default function KitchenPage() {
                   </div>
                 )}
                 {orders.map(o => (
-                  <KitchenCard key={o.id} order={o} productMap={productMap} />
+                  <KitchenCard key={o.id} order={o} productMap={productMap} tableMap={tableMap} />
                 ))}
                 {!isLoading && orders.length === 0 && (
                   <div className="py-12 text-center mono text-[11px] text-[#333] tracking-widest">

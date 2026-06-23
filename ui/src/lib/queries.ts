@@ -9,6 +9,7 @@ import { connectRealtime, disconnectRealtime, onRealtimeChange } from "./realtim
 
 export const QK = {
   menu:        (rid: string) => ["menu", rid]           as const,
+  tables:      (rid: string) => ["tables", rid]          as const,
   openOrders:  (rid: string) => ["orders", "open", rid] as const,
   order:       (id: string)  => ["order", id]            as const,
   currentUser: ()            => ["currentUser"]           as const,
@@ -106,6 +107,22 @@ export function useMenu() {
   return useQuery({
     queryKey:  QK.menu(restaurantId),
     queryFn:   () => ipc.fetchMenu(restaurantId),
+    enabled:   !!restaurantId,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+// ── Tables ────────────────────────────────────────────────────────────────────
+
+/**
+ * Restaurant tables change rarely (added/renamed by an admin, not part of the
+ * order flow), so this is cached aggressively — same staleTime as menu data.
+ */
+export function useTables() {
+  const restaurantId = usePosStore((s) => s.restaurantId) ?? "";
+  return useQuery({
+    queryKey:  QK.tables(restaurantId),
+    queryFn:   () => ipc.fetchTables(restaurantId),
     enabled:   !!restaurantId,
     staleTime: 5 * 60 * 1000,
   });

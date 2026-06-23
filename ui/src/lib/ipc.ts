@@ -54,6 +54,11 @@ export interface Category {
   createdAt: number; updatedAt: number; deletedAt: number | null;
 }
 
+export interface RestaurantTable {
+  id: string; restaurantId: string; label: string; capacity: number;
+  createdAt: number; updatedAt: number; deletedAt: number | null;
+}
+
 export interface Menu { categories: Category[]; products: Product[]; }
 
 export interface CreateProductPayload {
@@ -89,6 +94,9 @@ export const logout         = () => cmd<void>("logout");
 
 export const fetchMenu      = (restaurantId: string) =>
   cmd<Menu>("fetch_menu", { restaurantId });
+
+export const fetchTables    = (restaurantId: string) =>
+  cmd<RestaurantTable[]>("fetch_tables", { restaurantId });
 
 export const createProduct  = (restaurantId: string, payload: CreateProductPayload) =>
   cmd<Product>("create_product", { restaurantId, payload });
@@ -180,6 +188,15 @@ const SEED_PRODUCTS: Product[] = [
   { id:"p10", restaurantId: MOCK_RID, categoryId: "cat3", name: "Cold Coffee",         priceCents: 12000, taxRatePct: 5,  isAvailable: true, description: null, imageUrl: null, createdAt: ts(), updatedAt: ts(), deletedAt: null },
   { id:"p11", restaurantId: MOCK_RID, categoryId: "cat4", name: "Gulab Jamun",         priceCents: 14000, taxRatePct: 5,  isAvailable: true, description: null, imageUrl: null, createdAt: ts(), updatedAt: ts(), deletedAt: null },
   { id:"p12", restaurantId: MOCK_RID, categoryId: "cat4", name: "Brownie + Ice Cream", priceCents: 18000, taxRatePct: 5,  isAvailable: true, description: null, imageUrl: null, createdAt: ts(), updatedAt: ts(), deletedAt: null },
+];
+
+const SEED_TABLES: RestaurantTable[] = [
+  { id: "tbl1", restaurantId: MOCK_RID, label: "T-01", capacity: 2, createdAt: ts(), updatedAt: ts(), deletedAt: null },
+  { id: "tbl2", restaurantId: MOCK_RID, label: "T-02", capacity: 2, createdAt: ts(), updatedAt: ts(), deletedAt: null },
+  { id: "tbl3", restaurantId: MOCK_RID, label: "T-03", capacity: 4, createdAt: ts(), updatedAt: ts(), deletedAt: null },
+  { id: "tbl4", restaurantId: MOCK_RID, label: "T-04", capacity: 4, createdAt: ts(), updatedAt: ts(), deletedAt: null },
+  { id: "tbl5", restaurantId: MOCK_RID, label: "T-05", capacity: 6, createdAt: ts(), updatedAt: ts(), deletedAt: null },
+  { id: "tbl6", restaurantId: MOCK_RID, label: "Bar 1", capacity: 1, createdAt: ts(), updatedAt: ts(), deletedAt: null },
 ];
 
 // ── Shared, persisted, cross-tab mock state ────────────────────────────────
@@ -335,6 +352,9 @@ function devMock<T>(command: string, args: any): Promise<T> {
         categories: SEED_CATEGORIES.filter(c => !c.deletedAt),
         products:   MOCK_STATE.products.filter(p => !p.deletedAt),
       }));
+
+    case "fetch_tables":
+      return r(ok(SEED_TABLES.filter(t => !t.deletedAt)));
 
     case "create_product": {
       const p = args?.payload as CreateProductPayload;

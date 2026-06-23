@@ -3,7 +3,7 @@
 
 import { useState } from "react";
 import {
-  useOpenOrders, useMenu, useCreateOrderMutation,
+  useOpenOrders, useMenu, useTables, useCreateOrderMutation,
   useAddItemMutation, useRemoveItemMutation,
   useUpdateStatusMutation, useVoidOrderMutation,
 } from "@/lib/queries";
@@ -33,8 +33,8 @@ function StatusChip({ status }: { status: OrderStatus }) {
 // ── Left: Open orders panel ───────────────────────────────────────────────────
 
 function OrdersPanel({
-  activeId, onSelect,
-}: { activeId: string | null; onSelect: (id: string) => void }) {
+  activeId, onSelect, tableMap,
+}: { activeId: string | null; onSelect: (id: string) => void; tableMap: Map<string, string> }) {
   const { data: orders = [], isLoading } = useOpenOrders();
   const createOrder = useCreateOrderMutation();
   const user = usePosStore((s) => s.user);
@@ -77,6 +77,11 @@ function OrdersPanel({
             <div className="flex items-center justify-between mb-1">
               <span className="mono text-[10px] text-[#888]">
                 #{order.id.slice(-6).toUpperCase()}
+                {order.tableId && tableMap.get(order.tableId) && (
+                  <span className="ml-1.5" style={{ color: "var(--accent)" }}>
+                    · {tableMap.get(order.tableId)}
+                  </span>
+                )}
               </span>
               <StatusChip status={order.status} />
             </div>
@@ -194,8 +199,8 @@ function MenuPanel({
 // ── Right: Cart / active order ────────────────────────────────────────────────
 
 function CartPanel({
-  orderId, productMap,
-}: { orderId: string; productMap: Map<string, Product> }) {
+  orderId, productMap, tableMap,
+}: { orderId: string; productMap: Map<string, Product>; tableMap: Map<string, string> }) {
   const { data: orders = [] } = useOpenOrders();
   const order = orders.find(o => o.id === orderId);
 
@@ -215,6 +220,7 @@ function CartPanel({
   const canModify   = order.status === "OPEN" && user?.role !== "KITCHEN";
   const canVoid     = ["OPEN","SENT_TO_KITCHEN"].includes(order.status) && user?.role === "ADMIN";
   const canComplete = order.status === "READY" && user?.role !== "KITCHEN";
+  const tableLabel  = order.tableId ? tableMap.get(order.tableId) : null;
 
   return (
     <div className="w-80 flex flex-col border-l flex-shrink-0"
@@ -225,6 +231,9 @@ function CartPanel({
         <div className="flex items-center justify-between mb-1">
           <span className="mono text-[10px] text-[#888] tracking-widest">
             ORDER #{order.id.slice(-6).toUpperCase()}
+            {tableLabel && (
+              <span className="ml-1.5" style={{ color: "var(--accent)" }}>· {tableLabel}</span>
+            )}
           </span>
           <StatusChip status={order.status} />
         </div>
@@ -338,11 +347,15 @@ function CartPanel({
 export default function PosPage() {
   const [activeOrderId, setActiveOrderId] = useState<string | null>(null);
   const addItem = useAddItemMutation();
-  const { data: menu } = useMenu();
+  const { data: menu }   = useMenu();
+  const { data: tables } = useTables();
 
   // Build product lookup map for cart item name resolution
   const productMap = new Map<string, Product>(
     (menu?.products ?? []).map(p => [p.id, p])
+  );
+  const tableMap = new Map<string, string>(
+    (tables ?? []).map(t => [t.id, t.label])
   );
 
   function handleAddItem(product: Product) {
@@ -352,10 +365,10 @@ export default function PosPage() {
 
   return (
     <div className="h-full flex overflow-hidden">
-      <OrdersPanel activeId={activeOrderId} onSelect={setActiveOrderId} />
+      <OrdersPanel activeId={activeOrderId} onSelect={setActiveOrderId} tableMap={tableMap} />
       <MenuPanel   onAddItem={handleAddItem} activeOrderId={activeOrderId} />
       {activeOrderId
-        ? <CartPanel orderId={activeOrderId} productMap={productMap} />
+        ? <CartPanel orderId={activeOrderId} productMap={productMap} tableMap={tableMap} />
         : (
           <div className="w-80 flex items-center justify-center border-l flex-shrink-0"
                style={{ borderColor: "var(--border)", background: "var(--surface-1)" }}>
