@@ -16,6 +16,18 @@ pub struct Category {
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct RestaurantTable {
+    pub id:            String,
+    pub restaurant_id: String,
+    pub label:         String,
+    pub capacity:      i32,
+    pub created_at:    i64,
+    pub updated_at:    i64,
+    pub deleted_at:    Option<i64>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Product {
     pub id:            String,
     pub restaurant_id: String,

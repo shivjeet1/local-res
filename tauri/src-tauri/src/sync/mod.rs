@@ -97,6 +97,8 @@ struct PullResponse {
     orders:      Vec<serde_json::Value>,
     order_items: Vec<serde_json::Value>,
     products:    Vec<serde_json::Value>,
+    #[serde(default)]
+    tables:      Vec<serde_json::Value>,
     server_ts:   i64,
 }
 
@@ -130,13 +132,14 @@ pub async fn pull_from_cloud(
     }
 
     let pull: PullResponse = res.json().await.map_err(|e| format!("Pull parse error: {e}"))?;
-    let total = pull.orders.len() + pull.order_items.len() + pull.products.len();
+    let total = pull.orders.len() + pull.order_items.len() + pull.products.len() + pull.tables.len();
 
     tauri::async_runtime::spawn_blocking(move || {
         let conn = pool.get().map_err(|e| e.to_string())?;
         upsert_pulled_rows(&*conn, "orders",      &pull.orders,      pull.server_ts)?;
         upsert_pulled_rows(&*conn, "order_items", &pull.order_items, pull.server_ts)?;
         upsert_pulled_rows(&*conn, "products",    &pull.products,    pull.server_ts)?;
+        upsert_pulled_rows(&*conn, "restaurant_tables", &pull.tables, pull.server_ts)?;
         Ok::<_, String>(())
     })
     .await

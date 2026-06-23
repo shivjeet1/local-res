@@ -111,6 +111,7 @@ fn main() {
             commands::products::fetch_menu,
             commands::products::create_product,
             commands::products::delete_product,
+            commands::tables::fetch_tables,
             commands::orders::list_open_orders,
             commands::orders::get_order,
             commands::orders::save_order_locally,

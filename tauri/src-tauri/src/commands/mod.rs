@@ -5,6 +5,7 @@
 
 pub mod orders;
 pub mod products;
+pub mod tables;
 pub mod auth;
 pub mod printer;
 pub mod export;

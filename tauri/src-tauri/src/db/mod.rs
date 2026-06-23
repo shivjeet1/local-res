@@ -2,6 +2,7 @@
 
 pub mod orders;
 pub mod products;
+pub mod tables;
 pub mod users;
 
 use r2d2::Pool;
@@ -12,6 +13,7 @@ pub type DbPool = Pool<SqliteConnectionManager>;
 
 const MIGRATIONS: &[&str] = &[
     include_str!("../../migrations/001_initial.sql"),
+    include_str!("../../migrations/002_tables_checkpoint.sql"),
 ];
 
 pub fn init_pool(db_path: &Path) -> Result<DbPool, String> {
