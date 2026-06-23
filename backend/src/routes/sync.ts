@@ -248,7 +248,7 @@ export async function syncRoutes(app: FastifyInstance) {
 
     const sinceDate = new Date(since);
 
-    const [orders, orderItems, products, categories] = await Promise.all([
+    const [orders, orderItems, products, categories, tables] = await Promise.all([
       prisma.order.findMany({
         where:   { restaurantId, updatedAt: { gt: sinceDate } },
         include: { items: { where: { updatedAt: { gt: sinceDate } } } },
@@ -269,6 +269,10 @@ export async function syncRoutes(app: FastifyInstance) {
         where:   { restaurantId, updatedAt: { gt: sinceDate } },
         orderBy: { updatedAt: "asc" },
       }),
+      prisma.restaurantTable.findMany({
+        where:   { restaurantId, updatedAt: { gt: sinceDate } },
+        orderBy: { updatedAt: "asc" },
+      }),
     ]);
 
     return reply.send({
@@ -278,6 +282,7 @@ export async function syncRoutes(app: FastifyInstance) {
         orderItems,
         products,
         categories,
+        tables,
         serverTs: Date.now(),
       },
     });

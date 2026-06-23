@@ -36,6 +36,18 @@ export async function menuRoutes(app: FastifyInstance) {
     return reply.send({ success: true, data: { categories, products } });
   });
 
+  // GET /tables — restaurant seating, all staff can read
+  // Lives alongside menu routes since this is the same kind of "restaurant
+  // configuration" data (rarely changes, no write UI yet).
+  app.get("/tables", { preHandler: requireAuth }, async (req, reply) => {
+    const { restaurantId } = req.jwtPayload!;
+    const tables = await prisma.restaurantTable.findMany({
+      where:   { restaurantId, deletedAt: null },
+      orderBy: { label: "asc" },
+    });
+    return reply.send({ success: true, data: tables });
+  });
+
   // POST /menu/categories — ADMIN only
   app.post("/categories", { preHandler: requireRole("ADMIN") }, async (req, reply) => {
     const body = CreateCategorySchema.safeParse(req.body);
