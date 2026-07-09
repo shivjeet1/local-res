@@ -46,6 +46,21 @@ function notifyListeners() {
   for (const l of changeListeners) l();
 }
 
+// A separate listener set for the specific "order_ready" event, so staff
+// screens can fire a toast+sound notification without coupling to the generic
+// cache-invalidation path which fires on every order write.
+type ReadyListener = () => void;
+const readyListeners = new Set<ReadyListener>();
+
+export function onOrderReady(listener: ReadyListener): () => void {
+  readyListeners.add(listener);
+  return () => readyListeners.delete(listener);
+}
+
+function notifyReady() {
+  for (const l of readyListeners) l();
+}
+
 // ── Connection lifecycle ────────────────────────────────────────────────────
 
 interface RealtimeSession {
@@ -107,8 +122,11 @@ function _startConnect() {
   _socket.addEventListener("message", (event) => {
     try {
       const msg = JSON.parse(event.data as string);
-      if (msg.type === "order" || msg.type === "menu") {
+      if (msg.type === "order" || msg.type === "order_ready" || msg.type === "menu") {
         notifyListeners();
+      }
+      if (msg.type === "order_ready") {
+        notifyReady();
       }
       // "connected" and "pong" frames are intentionally ignored
     } catch {

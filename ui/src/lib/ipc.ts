@@ -23,7 +23,7 @@ export interface User {
 }
 
 export type OrderStatus =
-  | "OPEN" | "SENT_TO_KITCHEN" | "READY" | "COMPLETED" | "VOIDED";
+  | "OPEN" | "SENT_TO_KITCHEN" | "READY" | "DELIVERED" | "COMPLETED" | "VOIDED";
 
 export interface OrderItem {
   id: string; restaurantId: string; orderId: string; productId: string;

@@ -1,11 +1,12 @@
 "use client";
 // src/app/pos/page.tsx — 3-panel POS: Orders | Menu | Cart
 
-import { useState } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import {
   useOpenOrders, useMenu, useTables, useCreateOrderMutation,
   useAddItemMutation, useRemoveItemMutation,
   useUpdateStatusMutation, useVoidOrderMutation,
+  useOrderReadyNotification,
 } from "@/lib/queries";
 import { usePosStore } from "@/lib/store";
 import { centsToDisplay, type Order, type OrderItem, type OrderStatus, type Product } from "@/lib/ipc";
@@ -16,6 +17,7 @@ const STATUS_COLOR: Record<OrderStatus, string> = {
   OPEN:            "#3b82f6",
   SENT_TO_KITCHEN: "#f59e0b",
   READY:           "#00ff88",
+  DELIVERED:       "#a855f7",
   COMPLETED:       "#444444",
   VOIDED:          "#ef4444",
 };
@@ -219,7 +221,8 @@ function CartPanel({
   const activeItems = order.items.filter(i => !i.deletedAt);
   const canModify   = order.status === "OPEN" && user?.role !== "KITCHEN";
   const canVoid     = ["OPEN","SENT_TO_KITCHEN"].includes(order.status) && user?.role === "ADMIN";
-  const canComplete = order.status === "READY" && user?.role !== "KITCHEN";
+  const canDeliver  = order.status === "READY" && user?.role !== "KITCHEN";
+  const canPay      = order.status === "DELIVERED" && user?.role !== "KITCHEN";
   const tableLabel  = order.tableId ? tableMap.get(order.tableId) : null;
 
   return (
@@ -317,7 +320,22 @@ function CartPanel({
             ⏳ WAITING FOR KITCHEN
           </div>
         )}
-        {order.status === "READY" && canComplete && (
+        {order.status === "READY" && (
+          <div className="w-full py-2 mono text-[11px] text-center tracking-widest animate-pulse"
+               style={{ color: "#00ff88", border: "1px solid #00ff8833" }}>
+            ✓ READY FOR PICKUP
+          </div>
+        )}
+        {canDeliver && (
+          <button
+            onClick={() => updateStatus.mutate({ orderId: order.id, status: "DELIVERED" })}
+            disabled={updateStatus.isPending}
+            className="w-full py-2.5 font-semibold text-black mono text-sm transition-opacity"
+            style={{ background: "#a855f7" }}>
+            MARK DELIVERED →
+          </button>
+        )}
+        {canPay && (
           <button
             onClick={() => updateStatus.mutate({ orderId: order.id, status: "COMPLETED" })}
             disabled={updateStatus.isPending}
@@ -342,15 +360,45 @@ function CartPanel({
   );
 }
 
+// ── Toast notification ────────────────────────────────────────────────────────
+
+function playReadyChime() {
+  try {
+    const ctx  = new AudioContext();
+    // Two-tone ascending chime: low note then high note
+    const play = (freq: number, startAt: number, duration: number) => {
+      const osc  = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.type      = "sine";
+      osc.frequency.setValueAtTime(freq, startAt);
+      gain.gain.setValueAtTime(0.4, startAt);
+      gain.gain.exponentialRampToValueAtTime(0.001, startAt + duration);
+      osc.start(startAt);
+      osc.stop(startAt + duration);
+    };
+    const t = ctx.currentTime;
+    play(660, t,        0.18);
+    play(880, t + 0.20, 0.25);
+    // Clean up the AudioContext after the sound finishes
+    setTimeout(() => ctx.close(), 600);
+  } catch {
+    // AudioContext not available (SSR / blocked by policy) — silently skip
+  }
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function PosPage() {
   const [activeOrderId, setActiveOrderId] = useState<string | null>(null);
+  const [toast, setToast]                 = useState<string | null>(null);
+  const toastTimer                        = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const addItem = useAddItemMutation();
   const { data: menu }   = useMenu();
   const { data: tables } = useTables();
 
-  // Build product lookup map for cart item name resolution
   const productMap = new Map<string, Product>(
     (menu?.products ?? []).map(p => [p.id, p])
   );
@@ -358,13 +406,44 @@ export default function PosPage() {
     (tables ?? []).map(t => [t.id, t.label])
   );
 
+  // Fires whenever kitchen marks any order READY via the realtime push channel
+  const handleOrderReady = useCallback(() => {
+    playReadyChime();
+    setToast("🍽 An order is ready for pickup!");
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToast(null), 6000);
+  }, []);
+
+  useOrderReadyNotification(handleOrderReady);
+
+  // Clean up timer on unmount
+  useEffect(() => () => { if (toastTimer.current) clearTimeout(toastTimer.current); }, []);
+
   function handleAddItem(product: Product) {
     if (!activeOrderId) return;
     addItem.mutate({ orderId: activeOrderId, productId: product.id, quantity: 1 });
   }
 
   return (
-    <div className="h-full flex overflow-hidden">
+    <div className="h-full flex overflow-hidden relative">
+
+      {/* Toast notification */}
+      {toast && (
+        <div
+          onClick={() => setToast(null)}
+          className="absolute top-4 left-1/2 z-50 cursor-pointer
+                     mono text-[11px] tracking-widest px-5 py-3 transition-all"
+          style={{
+            transform:  "translateX(-50%)",
+            background: "#00ff8822",
+            border:     "1px solid #00ff8888",
+            color:      "#00ff88",
+            boxShadow:  "0 0 24px #00ff8833",
+          }}>
+          {toast}
+        </div>
+      )}
+
       <OrdersPanel activeId={activeOrderId} onSelect={setActiveOrderId} tableMap={tableMap} />
       <MenuPanel   onAddItem={handleAddItem} activeOrderId={activeOrderId} />
       {activeOrderId

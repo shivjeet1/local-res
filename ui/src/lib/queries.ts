@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import * as ipc from "./ipc";
 import { usePosStore } from "./store";
 import { onDevMockChange } from "./ipc";
-import { connectRealtime, disconnectRealtime, onRealtimeChange } from "./realtime";
+import { connectRealtime, disconnectRealtime, onRealtimeChange, onOrderReady } from "./realtime";
 
 export const QK = {
   menu:        (rid: string) => ["menu", rid]           as const,
@@ -39,6 +39,19 @@ export function useDevMockSync() {
     const unsubRealtime = onRealtimeChange(invalidate);
     return () => { unsubMock(); unsubRealtime(); };
   }, [qc, restaurantId]);
+}
+
+/**
+ * Fires `onReady()` whenever the backend pushes an "order_ready" event —
+ * i.e. kitchen just marked an order as READY. The caller is responsible for
+ * showing a toast and playing a sound. Lives here (rather than inline in the
+ * page) so the subscription is set up once at the component tree level,
+ * regardless of which specific component renders the notification UI.
+ */
+export function useOrderReadyNotification(onReady: () => void) {
+  useEffect(() => {
+    return onOrderReady(onReady);
+  }, [onReady]);
 }
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
