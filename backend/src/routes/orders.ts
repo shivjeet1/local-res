@@ -6,7 +6,7 @@ import { requireAuth, requireRole } from "../auth/auth.service.js";
 import { createId } from "@paralleldrive/cuid2";
 import { broadcastToRestaurant } from "../realtime.js";
 
-const OrderStatusSchema = z.enum(["OPEN","SENT_TO_KITCHEN","READY","COMPLETED","VOIDED"]);
+const OrderStatusSchema = z.enum(["OPEN","SENT_TO_KITCHEN","READY","DELIVERED","COMPLETED","VOIDED"]);
 
 const CreateOrderSchema = z.object({
   id:       z.string(),          // CUID2 from device
@@ -114,25 +114,34 @@ export async function orderRoutes(app: FastifyInstance) {
 
     const { status } = body.data;
 
-    // RBAC: kitchen can only move to READY; cannot void
-    if (role === "KITCHEN" && !["READY"].includes(status)) {
+    // RBAC:
+    //   KITCHEN  → may only move to READY
+    //   STAFF    → may move to DELIVERED or COMPLETED, may not VOID
+    //   ADMIN    → unrestricted
+    if (role === "KITCHEN" && status !== "READY") {
       return reply.code(403).send({ error: "Kitchen can only mark orders READY" });
     }
     if (role === "STAFF" && status === "VOIDED") {
       return reply.code(403).send({ error: "Only ADMIN can void orders" });
+    }
+    if (role === "STAFF" && !["SENT_TO_KITCHEN","DELIVERED","COMPLETED"].includes(status)) {
+      return reply.code(403).send({ error: "Staff cannot set that status" });
     }
 
     const updated = await prisma.order.updateMany({
       where: { id, restaurantId, deletedAt: null },
       data: {
         status,
-        paidAt:   status === "COMPLETED" ? new Date() : null, // <-- FIX: Changed undefined to null
+        paidAt:   status === "COMPLETED" ? new Date() : null,
         syncedAt: new Date(),
       },
     });
     if (updated.count === 0) return reply.code(404).send({ error: "Not found" });
 
-    broadcastToRestaurant(restaurantId, "order");
+    // Use the specific "order_ready" event when kitchen marks READY so staff
+    // clients can fire a toast+sound notification rather than a silent refetch.
+    const eventType = status === "READY" ? "order_ready" : "order";
+    broadcastToRestaurant(restaurantId, eventType);
 
     return reply.send({ success: true });
   });

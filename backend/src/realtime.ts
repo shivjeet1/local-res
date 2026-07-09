@@ -13,7 +13,7 @@
 
 import type { WebSocket } from "ws";
 
-export type RealtimeEventType = "order" | "menu";
+export type RealtimeEventType = "order" | "order_ready" | "menu";
 
 export interface RealtimeMessage {
   type:          RealtimeEventType;
