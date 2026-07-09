@@ -8,6 +8,7 @@ pub enum OrderStatus {
     Open,
     SentToKitchen,
     Ready,
+    Delivered,
     Completed,
     Voided,
 }
@@ -18,6 +19,7 @@ impl OrderStatus {
             OrderStatus::Open          => "OPEN",
             OrderStatus::SentToKitchen => "SENT_TO_KITCHEN",
             OrderStatus::Ready         => "READY",
+            OrderStatus::Delivered     => "DELIVERED",
             OrderStatus::Completed     => "COMPLETED",
             OrderStatus::Voided        => "VOIDED",
         }
@@ -31,6 +33,7 @@ impl TryFrom<String> for OrderStatus {
             "OPEN"             => Ok(OrderStatus::Open),
             "SENT_TO_KITCHEN"  => Ok(OrderStatus::SentToKitchen),
             "READY"            => Ok(OrderStatus::Ready),
+            "DELIVERED"        => Ok(OrderStatus::Delivered),
             "COMPLETED"        => Ok(OrderStatus::Completed),
             "VOIDED"           => Ok(OrderStatus::Voided),
             other              => Err(format!("Unknown status: {other}")),
