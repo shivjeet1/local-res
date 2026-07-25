@@ -149,6 +149,7 @@ enum OrderStatus {
   OPEN
   SENT_TO_KITCHEN
   READY
+  DELIVERED
   COMPLETED
   VOIDED
 }
