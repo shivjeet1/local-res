@@ -2,7 +2,7 @@
 // src/app/pos/admin/page.tsx — ADMIN only
 
 import { useState } from "react";
-import { useCurrentUser } from "@/lib/queries";
+import { useCurrentUser, useDailyReport, useAdminUsers, useDeleteUserMutation } from "@/lib/queries";
 import { centsToDisplay } from "@/lib/ipc";
 import { useRouter } from "next/navigation";
 
@@ -47,10 +47,10 @@ export default function AdminPage() {
 
       {/* Tab content */}
       <div className="flex-1 scrollable p-6">
-        {tab === "REPORT" && <ReportTab />}
-        {tab === "USERS"  && <UsersTab />}
+        {tab === "REPORT"  && <ReportTab />}
+        {tab === "USERS"   && <UsersTab />}
         {tab === "DEVICES" && <DevicesTab />}
-        {tab === "SYNC"   && <SyncTab />}
+        {tab === "SYNC"    && <SyncTab />}
       </div>
     </div>
   );
@@ -60,15 +60,7 @@ export default function AdminPage() {
 
 function ReportTab() {
   const today = new Date().toISOString().split("T")[0];
-
-  // Placeholder — real impl uses a useQuery calling an admin/reports endpoint via IPC
-  const mockReport = {
-    date:          today,
-    orderCount:    14,
-    subtotalCents: 820000,
-    taxCents:      65600,
-    totalCents:    885600,
-  };
+  const { data: report, isLoading } = useDailyReport();
 
   const stat = (label: string, value: string, color = "var(--accent)") => (
     <div className="p-5 border" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
@@ -79,13 +71,27 @@ function ReportTab() {
 
   return (
     <div className="max-w-2xl space-y-4">
-      <div className="mono text-[10px] text-[#444] tracking-widest">DAILY REPORT · {today}</div>
-      <div className="grid grid-cols-2 gap-3">
-        {stat("ORDERS TODAY",   `${mockReport.orderCount}`,                              "#3b82f6")}
-        {stat("GROSS TOTAL",    centsToDisplay(mockReport.totalCents, "₹")              )}
-        {stat("SUBTOTAL",       centsToDisplay(mockReport.subtotalCents, "₹"),           "#f0f0f0")}
-        {stat("GST COLLECTED",  centsToDisplay(mockReport.taxCents, "₹"),               "#f59e0b")}
+      <div className="mono text-[10px] text-[#444] tracking-widest">
+        DAILY REPORT · {today}
       </div>
+
+      {isLoading ? (
+        <div className="mono text-[11px] text-[#444] animate-pulse tracking-widest">
+          LOADING...
+        </div>
+      ) : report && report.orderCount > 0 ? (
+        <div className="grid grid-cols-2 gap-3">
+          {stat("ORDERS TODAY",  `${report.orderCount}`,                        "#3b82f6")}
+          {stat("GROSS TOTAL",   centsToDisplay(report.totalCents,    "₹")             )}
+          {stat("SUBTOTAL",      centsToDisplay(report.subtotalCents, "₹"), "#f0f0f0"  )}
+          {stat("GST COLLECTED", centsToDisplay(report.taxCents,      "₹"), "#f59e0b"  )}
+        </div>
+      ) : (
+        <div className="p-8 border text-center mono text-[11px] text-[#444] tracking-widest"
+             style={{ borderColor: "var(--border)" }}>
+          NO COMPLETED ORDERS TODAY
+        </div>
+      )}
     </div>
   );
 }
@@ -93,12 +99,9 @@ function ReportTab() {
 // ── Users tab ──────────────────────────────────────────────────────────────
 
 function UsersTab() {
-  // Placeholder rows — real impl: useQuery({ queryFn: () => invoke('list_users') })
-  const mockUsers = [
-    { id: "u1", name: "Admin",    email: "admin@pos.dev",   role: "ADMIN"   },
-    { id: "u2", name: "Staff One",email: "staff@pos.dev",   role: "STAFF"   },
-    { id: "u3", name: "Kitchen",  email: "kitchen@pos.dev", role: "KITCHEN" },
-  ];
+  const { data: users = [], isLoading } = useAdminUsers();
+  const deleteUser = useDeleteUserMutation();
+  const { data: self } = useCurrentUser();
 
   const ROLE_COLOR: Record<string, string> = {
     ADMIN: "var(--accent)", STAFF: "#3b82f6", KITCHEN: "#f59e0b",
@@ -107,7 +110,14 @@ function UsersTab() {
   return (
     <div className="max-w-2xl space-y-2">
       <div className="mono text-[10px] text-[#444] tracking-widest mb-4">STAFF ACCOUNTS</div>
-      {mockUsers.map(u => (
+
+      {isLoading && (
+        <div className="mono text-[11px] text-[#444] animate-pulse tracking-widest">
+          LOADING...
+        </div>
+      )}
+
+      {users.map(u => (
         <div key={u.id} className="flex items-center gap-4 px-4 py-3 border"
              style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
           <div className="flex-1">
@@ -118,11 +128,26 @@ function UsersTab() {
                 style={{ color: ROLE_COLOR[u.role], border: `1px solid ${ROLE_COLOR[u.role]}44` }}>
             {u.role}
           </span>
-          <button className="mono text-[11px] px-2 py-1" style={{ color: "#ef4444" }}>
-            DEL
-          </button>
+          {u.id !== self?.id && (
+            <button
+              onClick={() => {
+                if (confirm(`Delete user ${u.name}?`)) deleteUser.mutate(u.id);
+              }}
+              disabled={deleteUser.isPending}
+              className="mono text-[11px] px-2 py-1 disabled:opacity-40"
+              style={{ color: "#ef4444" }}>
+              DEL
+            </button>
+          )}
         </div>
       ))}
+
+      {!isLoading && users.length === 0 && (
+        <div className="p-6 border text-center mono text-[11px] text-[#444]"
+             style={{ borderColor: "var(--border)" }}>
+          NO USERS FOUND
+        </div>
+      )}
     </div>
   );
 }

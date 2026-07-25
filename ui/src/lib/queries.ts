@@ -275,3 +275,33 @@ export function useSyncMutation() {
     },
   });
 }
+
+// ── Admin ─────────────────────────────────────────────────────────────────────
+
+export function useDailyReport(date?: string) {
+  const jwt = usePosStore((s) => s.jwt ?? "");
+  return useQuery({
+    queryKey:  ["admin", "report", date ?? "today"],
+    queryFn:   () => ipc.fetchDailyReport(jwt, date),
+    // Refetch every minute so totals stay current as orders are paid
+    refetchInterval: 60_000,
+  });
+}
+
+export function useAdminUsers() {
+  const jwt = usePosStore((s) => s.jwt ?? "");
+  return useQuery({
+    queryKey:  ["admin", "users"],
+    queryFn:   () => ipc.listAdminUsers(jwt),
+    staleTime: 60_000,
+  });
+}
+
+export function useDeleteUserMutation() {
+  const jwt = usePosStore((s) => s.jwt ?? "");
+  const qc  = useQueryClient();
+  return useMutation({
+    mutationFn: (userId: string) => ipc.deleteAdminUser(jwt, userId),
+    onSuccess:  () => qc.invalidateQueries({ queryKey: ["admin", "users"] }),
+  });
+}

@@ -124,6 +124,98 @@ export const triggerSync    = (restaurantId: string, deviceId: string, jwt: stri
 export const centsToDisplay = (cents: number, currency = "₹"): string =>
   `${currency}${(cents / 100).toFixed(2)}`;
 
+// ── Admin types ───────────────────────────────────────────────────────────────
+
+export interface DailyReport {
+  date:          string;
+  orderCount:    number;
+  subtotalCents: number;
+  taxCents:      number;
+  totalCents:    number;
+}
+
+export interface AdminUser {
+  id:    string;
+  name:  string;
+  email: string;
+  role:  "ADMIN" | "STAFF" | "KITCHEN";
+}
+
+// ── HTTP API calls (backend, authenticated) ───────────────────────────────────
+//
+// Admin-only endpoints go through the cloud backend over HTTP, not Tauri IPC,
+// since they're inherently cloud-side operations (multi-device user management,
+// aggregated reports across all devices' synced data). The JWT from the store
+// is passed as a Bearer token.
+
+const HTTP_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+
+async function apiFetch<T>(path: string, jwt: string, init?: RequestInit): Promise<T> {
+  // In dev/browser mode with no real backend, compute mock results from
+  // the shared MOCK_STATE so the admin dashboard reflects actual test orders.
+  if (!isTauri && !jwt) {
+    return devMockHttp<T>(path, init?.method ?? "GET");
+  }
+
+  const res = await fetch(`${HTTP_BASE}${path}`, {
+    ...init,
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${jwt}`,
+      ...init?.headers,
+    },
+  });
+  const body = await res.json() as ApiResponse<T>;
+  if (!res.ok || !body.success || body.data === null) {
+    throw new Error(body.error ?? `HTTP ${res.status}`);
+  }
+  return body.data;
+}
+
+function devMockHttp<T>(path: string, method: string): T {
+  const today     = new Date().toISOString().split("T")[0];
+
+  if (path.startsWith("/admin/reports/daily")) {
+    const completed = MOCK_STATE.orders.filter(o =>
+      o.status === "COMPLETED" && !o.deletedAt &&
+      new Date(o.updatedAt).toISOString().split("T")[0] === today
+    );
+    const report: DailyReport = {
+      date:          today,
+      orderCount:    completed.length,
+      subtotalCents: completed.reduce((s, o) => s + o.subtotalCents, 0),
+      taxCents:      completed.reduce((s, o) => s + o.taxCents,      0),
+      totalCents:    completed.reduce((s, o) => s + o.totalCents,    0),
+    };
+    return report as unknown as T;
+  }
+
+  if (path === "/admin/users" && method === "GET") {
+    const users: AdminUser[] = MOCK_USERS.map(({ password: _pw, ...u }) => ({
+      id:    u.id,
+      name:  u.name,
+      email: u.email,
+      role:  u.role as AdminUser["role"],
+    }));
+    return users as unknown as T;
+  }
+
+  if (path.startsWith("/admin/users/") && method === "DELETE") {
+    return undefined as unknown as T;
+  }
+
+  throw new Error(`devMockHttp: unhandled path ${method} ${path}`);
+}
+
+export const fetchDailyReport = (jwt: string, date?: string): Promise<DailyReport> =>
+  apiFetch<DailyReport>(`/admin/reports/daily${date ? `?date=${date}` : ""}`, jwt);
+
+export const listAdminUsers = (jwt: string): Promise<AdminUser[]> =>
+  apiFetch<AdminUser[]>("/admin/users", jwt);
+
+export const deleteAdminUser = (jwt: string, userId: string): Promise<void> =>
+  apiFetch<void>(`/admin/users/${userId}`, jwt, { method: "DELETE" });
+
 // ── Dev mock ──────────────────────────────────────────────────────────────────
 //
 // In browser-dev mode (no Tauri backend) this is the *only* thing standing in
