@@ -1,0 +1,68 @@
+version: '1.0'
+
+services:
+  # 1. Database Service
+  postgres:
+    image: postgres:15-alpine
+    container_name: local-res-db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password123
+      POSTGRES_DB: local_res_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d local_res_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - pos-network
+
+  # 2. Backend Service
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: local-res-backend
+    environment:
+      - DATABASE_URL=postgresql://postgres:password123@postgres:5432/local_res_db?schema=public
+      - PORT=4000
+    ports:
+      - "4000:4000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - pos-network
+    command: >
+      sh -c "npx prisma migrate deploy &&
+             node dist/app.js"
+
+  # 3. UI Service (Next.js)
+  ui:
+    build:
+      context: ./ui
+      dockerfile: Dockerfile # We'll create this next!
+    container_name: local-res-ui
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:4000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    networks:
+      - pos-network
+
+volumes:
+  postgres_data:
+
+networks:
+  pos-network:
+    driver: bridge
+
+
+
+
