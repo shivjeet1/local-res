@@ -1,0 +1,42 @@
+# docker-compose.yml
+# Runs: PostgreSQL + POS API backend
+# Desktop Tauri app runs natively — NOT in docker
+
+services:
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER:     postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB:       pos_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL:      postgresql://postgres:password@postgres:5432/pos_db
+      JWT_SECRET:        ${JWT_SECRET:-change-me-for-production}
+      PORT:              4000
+      NODE_ENV:          production
+      ALLOWED_ORIGINS:   tauri://localhost
+    ports:
+      - "4000:4000"
+
+volumes:
+  pgdata:
