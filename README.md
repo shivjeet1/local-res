@@ -40,3 +40,48 @@ Build for production:
 npm run build                 # produces static site in out/
 ```
 
+### 4. Docker Compose Setup
+
+To run the entire stack (Database, Backend, and UI) using Docker Compose:
+
+```bash
+docker-compose up -d --build
+```
+The services will be available at:
+- **UI**: http://localhost:3000
+- **Backend API**: http://localhost:4000
+- **Database**: `postgresql://postgres:password123@localhost:5432/local_res_db`
+
+To stop the services:
+```bash
+docker-compose down
+```
+
+### 5. Kubernetes Setup
+
+To deploy the application to a Kubernetes cluster, apply the manifests in the `k8s` directory. Make sure you build the Docker images (`local-res-backend:latest` and `local-res-ui:latest`) first or have them available in your registry.
+
+```bash
+# 1. Deploy the Database (PostgreSQL)
+kubectl apply -f k8s/database.yaml
+
+# 2. Deploy the Backend API
+kubectl apply -f k8s/backend.yaml
+
+# 3. Deploy the Frontend UI
+kubectl apply -f k8s/frontend.yaml
+```
+
+Verify that the pods are running:
+```bash
+kubectl get pods
+```
+
+To access the services locally (e.g. Minikube/Docker Desktop), you can port-forward them:
+```bash
+# Port-forward the UI
+kubectl port-forward svc/ui 3000:3000
+
+# Port-forward the Backend (if needed for API testing)
+kubectl port-forward svc/backend 4000:4000
+```
