@@ -1,0 +1,14 @@
+{
+  "name": "local-res-workspace",
+  "private": true,
+  "workspaces": [
+    "backend",
+    "ui",
+    "tauri",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspaces --if-present",
+    "build": "npm run build --workspaces --if-present"
+  }
+}
