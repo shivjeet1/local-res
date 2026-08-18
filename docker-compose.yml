@@ -23,8 +23,8 @@ services:
   # 2. Backend Service
   backend:
     build:
-      context: ./backend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: backend/Dockerfile
     container_name: local-res-backend
     environment:
       - DATABASE_URL=postgresql://postgres:password123@postgres:5432/local_res_db?schema=public
@@ -37,14 +37,13 @@ services:
     networks:
       - pos-network
     command: >
-      sh -c "npx prisma migrate deploy &&
-             node dist/app.js"
+      sh -c "cd backend && npx prisma migrate deploy && node dist/app.js"
 
   # 3. UI Service (Next.js)
   ui:
     build:
-      context: ./ui
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: ui/Dockerfile
       args:
         - NEXT_PUBLIC_API_URL=http://localhost:4000
     container_name: local-res-ui
