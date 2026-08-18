@@ -1,4 +1,21 @@
+## Features
+
+- **GST Toggle**: Easily toggle GST calculations for individual orders directly from the POS cart.
+- **Offline-First Synchronization**: Powered by Tauri with a local SQLite database that seamlessly syncs to a Postgres cloud backend.
+- **Multi-Tenant Security**: Enforces automatic multi-tenancy scoping and soft deletes using Prisma extensions and Fastify's `AsyncLocalStorage`.
+- **Monorepo Architecture**: Clean npm workspace structure sharing types and logic via `@local-res/shared` between the backend, UI, and Tauri apps.
+
 ## Quick Start
+
+This project is structured as an **npm workspace** containing the `backend`, `ui`, `tauri` (desktop), and `packages/shared` directories.
+
+### 0. Install Dependencies
+
+Run `npm install` at the root of the project to install and link all workspace dependencies:
+
+```bash
+npm install
+```
 
 ### 1. Cloud backend
 
@@ -19,25 +36,19 @@ npm run db:seed
 
 ```bash
 cd ui
-npm install
 npm run dev                   # starts Next.js dev server
 ```
+
 ### 3. Desktop app (Tauri)
 
 ```bash
 cd tauri
-npm install
 npm run dev                   # starts Tauri + Next.js dev server
 ```
 
 Build for production:
 ```bash
 npm run build                 # produces installer in src-tauri/target/release/bundle/
-```
-
-Build for production:
-```bash
-npm run build                 # produces static site in out/
 ```
 
 ### 4. Docker Compose Setup
