@@ -2,7 +2,7 @@
 import { FastifyRequest, FastifyReply } from "fastify";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import { prisma } from "../prisma/client.js";
+import { prisma, tenantContext } from "../prisma/client.js";
 
 export type JwtPayload = {
   sub:          string;   // userId
@@ -58,7 +58,11 @@ export async function requireAuth(req: FastifyRequest, reply: FastifyReply) {
     return reply.code(401).send({ error: "Missing token" });
   }
   try {
-    req.jwtPayload = verifyToken(header.slice(7));
+    const payload = verifyToken(header.slice(7));
+    req.jwtPayload = payload;
+    
+    const store = tenantContext.getStore();
+    if (store) store.restaurantId = payload.restaurantId;
   } catch {
     return reply.code(401).send({ error: "Invalid token" });
   }

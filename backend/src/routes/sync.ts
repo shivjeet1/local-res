@@ -5,7 +5,7 @@
 
 import { FastifyInstance } from "fastify";
 import { z } from "zod";
-import { prisma } from "../prisma/client.js";
+import { unscopedPrisma as prisma } from "../prisma/client.js";
 import { requireAuth } from "../auth/auth.service.js";
 import { broadcastToRestaurant } from "../realtime.js";
 
@@ -25,6 +25,7 @@ const OrderRow = BaseRow.extend({
   deviceId:      z.string(),
   status:        z.enum(["OPEN","SENT_TO_KITCHEN","READY","COMPLETED","VOIDED"]),
   notes:         z.string().nullable(),
+  applyGst:      z.boolean().default(true),
   subtotalCents: z.number().int(),
   taxCents:      z.number().int(),
   totalCents:    z.number().int(),
@@ -84,6 +85,7 @@ async function lwwOrder(row: z.infer<typeof OrderRow>, restaurantId: string) {
       deviceId:      row.deviceId,
       status:        row.status,
       notes:         row.notes,
+      applyGst:      row.applyGst,
       subtotalCents: row.subtotalCents,
       taxCents:      row.taxCents,
       totalCents:    row.totalCents,
@@ -96,6 +98,7 @@ async function lwwOrder(row: z.infer<typeof OrderRow>, restaurantId: string) {
     update: {
       status:        row.status,
       notes:         row.notes,
+      applyGst:      row.applyGst,
       subtotalCents: row.subtotalCents,
       taxCents:      row.taxCents,
       totalCents:    row.totalCents,

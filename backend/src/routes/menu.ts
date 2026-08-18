@@ -5,19 +5,7 @@ import { prisma } from "../prisma/client.js";
 import { requireAuth, requireRole } from "../auth/auth.service.js";
 import { createId } from "@paralleldrive/cuid2";
 
-const CreateProductSchema = z.object({
-  name:        z.string().min(1),
-  categoryId:  z.string().optional(),
-  description: z.string().optional(),
-  priceCents:  z.number().int().nonnegative(),
-  taxRatePct:  z.number().min(0).max(100).default(0),
-  imageUrl:    z.string().url().optional(),
-});
-
-const CreateCategorySchema = z.object({
-  name:      z.string().min(1),
-  sortOrder: z.number().int().default(0),
-});
+import { CreateProductSchema, CreateCategorySchema } from "@local-res/shared";
 
 export async function menuRoutes(app: FastifyInstance) {
   // GET /menu — all staff can read

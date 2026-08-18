@@ -162,6 +162,7 @@ model Order {
   deviceId      String      @map("device_id")
   status        OrderStatus @default(OPEN)
   notes         String?
+  applyGst      Boolean     @default(true) @map("apply_gst")
   subtotalCents Int         @default(0) @map("subtotal_cents")
   taxCents      Int         @default(0) @map("tax_cents")
   totalCents    Int         @default(0) @map("total_cents")

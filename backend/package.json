@@ -19,7 +19,8 @@
     "bcryptjs": "^2.4.3",
     "fastify": "^4.28.0",
     "jsonwebtoken": "^9.0.2",
-    "zod": "^3.23.8"
+    "zod": "^3.23.8",
+    "@local-res/shared": "*"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",

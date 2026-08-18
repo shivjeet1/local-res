@@ -9,9 +9,15 @@ import { orderRoutes }   from "./routes/orders.js";
 import { syncRoutes }    from "./routes/sync.js";
 import { adminRoutes }   from "./routes/admin.js";
 import { realtimeRoutes } from "./routes/realtime.js";
+import { tenantContext } from "./prisma/client.js";
 
 export async function buildApp() {
   const app = Fastify({ logger: process.env.NODE_ENV !== "test" });
+
+  app.addHook("onRequest", (req, reply, done) => {
+    tenantContext.enterWith({ restaurantId: undefined });
+    done();
+  });
 
   // ── Plugins ──────────────────────────────────────────────────────────────
 
