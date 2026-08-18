@@ -10,3 +10,32 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Node & JS
+node_modules/
+dist/
+build/
+coverage/
+
+# Next.js
+.next/
+out/
+next-env.d.ts
+
+# Rust / Tauri
+target/
+**/*.rs.bk
+
+# Environment
+.env
+.env.*.local
+.env.local
+
+# Prisma / DB
+*.sqlite
+*.sqlite3
+*.db
+*.db-journal
+
+# Misc
+.vercel
