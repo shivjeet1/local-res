@@ -164,7 +164,7 @@ export function useDeleteProductMutation() {
 
 export function useOpenOrders() {
   const restaurantId = usePosStore((s) => s.restaurantId) ?? "";
-  return useQuery({
+  return useQuery<ipc.Order[]>({
     queryKey:        QK.openOrders(restaurantId),
     queryFn:         () => ipc.listOpenOrders(restaurantId),
     enabled:         !!restaurantId,
@@ -239,6 +239,20 @@ export function useUpdateStatusMutation() {
   return useMutation({
     mutationFn: ({ orderId, status }: { orderId: string; status: ipc.OrderStatus }) =>
       ipc.updateOrderStatus(orderId, status),
+    onSuccess: (order) => {
+      qc.setQueryData(QK.order(order.id), order);
+      qc.invalidateQueries({ queryKey: QK.openOrders(restaurantId) });
+    },
+  });
+}
+
+export function useToggleGstMutation() {
+  const qc           = useQueryClient();
+  const restaurantId = usePosStore((s) => s.restaurantId ?? "");
+
+  return useMutation({
+    mutationFn: ({ orderId, applyGst }: { orderId: string; applyGst: boolean }) =>
+      ipc.toggleOrderGst(orderId, applyGst),
     onSuccess: (order) => {
       qc.setQueryData(QK.order(order.id), order);
       qc.invalidateQueries({ queryKey: QK.openOrders(restaurantId) });

@@ -14,50 +14,11 @@ async function invoke<T>(command: string, args?: Record<string, unknown>): Promi
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-export type UserRole = "ADMIN" | "STAFF" | "KITCHEN";
+import type {
+  UserRole, User, OrderStatus, OrderItem, Order, Product, Category, RestaurantTable
+} from "@local-res/shared";
 
-export interface User {
-  id: string; restaurantId: string; name: string;
-  email: string; role: UserRole;
-  createdAt: number; updatedAt: number; deletedAt: number | null;
-}
-
-export type OrderStatus =
-  | "OPEN" | "SENT_TO_KITCHEN" | "READY" | "DELIVERED" | "COMPLETED" | "VOIDED";
-
-export interface OrderItem {
-  id: string; restaurantId: string; orderId: string; productId: string;
-  deviceId: string; quantity: number; unitPriceCents: number;
-  notes: string | null; createdAt: number; updatedAt: number;
-  deletedAt: number | null; syncedAt: number | null;
-}
-
-export interface Order {
-  id: string; restaurantId: string; tableId: string | null;
-  userId: string; deviceId: string; status: OrderStatus;
-  notes: string | null; subtotalCents: number; taxCents: number;
-  totalCents: number; paidAt: number | null;
-  createdAt: number; updatedAt: number;
-  deletedAt: number | null; syncedAt: number | null;
-  items: OrderItem[];
-}
-
-export interface Product {
-  id: string; restaurantId: string; categoryId: string | null;
-  name: string; description: string | null; priceCents: number;
-  taxRatePct: number; isAvailable: boolean; imageUrl: string | null;
-  createdAt: number; updatedAt: number; deletedAt: number | null;
-}
-
-export interface Category {
-  id: string; restaurantId: string; name: string; sortOrder: number;
-  createdAt: number; updatedAt: number; deletedAt: number | null;
-}
-
-export interface RestaurantTable {
-  id: string; restaurantId: string; label: string; capacity: number;
-  createdAt: number; updatedAt: number; deletedAt: number | null;
-}
+export type { UserRole, User, OrderStatus, OrderItem, Order, Product, Category, RestaurantTable };
 
 export interface Menu { categories: Category[]; products: Product[]; }
 
@@ -117,6 +78,8 @@ export const removeOrderItem = (orderId: string, itemId: string) =>
   cmd<Order>("remove_order_item", { orderId, itemId });
 export const updateOrderStatus = (orderId: string, status: OrderStatus) =>
   cmd<Order>("update_order_status", { payload: { orderId, status } });
+export const toggleOrderGst = (orderId: string, applyGst: boolean) =>
+  cmd<Order>("toggle_order_gst", { payload: { orderId, applyGst } });
 export const voidOrder      = (orderId: string) => cmd<void>("void_order", { orderId });
 export const triggerSync    = (restaurantId: string, deviceId: string, jwt: string) =>
   cmd<SyncResult>("trigger_sync", { restaurantId, deviceId, jwt });
@@ -487,7 +450,7 @@ function devMock<T>(command: string, args: any): Promise<T> {
         id: makeId(), restaurantId: MOCK_RID,
         tableId:  args?.payload?.tableId ?? null,
         userId, deviceId: MOCK_DID,
-        status: "OPEN", notes: args?.payload?.notes ?? null,
+        status: "OPEN", notes: args?.payload?.notes ?? null, applyGst: true,
         subtotalCents: 0, taxCents: 0, totalCents: 0,
         paidAt: null, createdAt: ts(), updatedAt: ts(),
         deletedAt: null, syncedAt: null, items: [],
@@ -549,6 +512,19 @@ function devMock<T>(command: string, args: any): Promise<T> {
       return result.ok ? r(ok(result.order)) : r(err(result.error));
     }
 
+    case "toggle_order_gst": {
+      const { orderId, applyGst } = args?.payload ?? {};
+      const result = mutate(s => {
+        const order = s.orders.find(o => o.id === orderId);
+        if (!order) return { ok: false, error: "Order not found" } as const;
+        order.applyGst  = applyGst;
+        order.updatedAt = ts();
+        recalcTotals(order, s.products);
+        return { ok: true, order: { ...order, items: [...order.items] } } as const;
+      });
+      return result.ok ? r(ok(result.order)) : r(err(result.error));
+    }
+
     case "void_order": {
       mutate(s => {
         const order = s.orders.find(o => o.id === args?.orderId);
@@ -568,7 +544,7 @@ function devMock<T>(command: string, args: any): Promise<T> {
 function recalcTotals(order: Order, products: Product[]) {
   const active = order.items.filter(i => !i.deletedAt);
   order.subtotalCents = active.reduce((s, i) => s + i.unitPriceCents * i.quantity, 0);
-  order.taxCents = active.reduce((s, i) => {
+  order.taxCents = !order.applyGst ? 0 : active.reduce((s, i) => {
     const p = products.find(p => p.id === i.productId);
     return s + Math.floor(i.unitPriceCents * i.quantity * (p?.taxRatePct ?? 0) / 100);
   }, 0);

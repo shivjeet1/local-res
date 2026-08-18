@@ -5,7 +5,7 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import {
   useOpenOrders, useMenu, useTables, useCreateOrderMutation,
   useAddItemMutation, useRemoveItemMutation,
-  useUpdateStatusMutation, useVoidOrderMutation,
+  useUpdateStatusMutation, useVoidOrderMutation, useToggleGstMutation,
   useOrderReadyNotification,
 } from "@/lib/queries";
 import { usePosStore } from "@/lib/store";
@@ -67,7 +67,7 @@ function OrdersPanel({
             LOADING...
           </div>
         )}
-        {orders.map(order => (
+        {orders.map((order: Order) => (
           <button key={order.id} onClick={() => onSelect(order.id)}
             className="w-full text-left px-3 py-3 border-b transition-all"
             style={{
@@ -209,6 +209,7 @@ function CartPanel({
   const removeItem   = useRemoveItemMutation();
   const updateStatus = useUpdateStatusMutation();
   const voidOrder    = useVoidOrderMutation();
+  const toggleGst    = useToggleGstMutation();
   const user         = usePosStore((s) => s.user);
 
   if (!order) return (
@@ -293,8 +294,18 @@ function CartPanel({
         <div className="flex justify-between mono text-[11px] text-[#888]">
           <span>SUBTOTAL</span><span>{centsToDisplay(order.subtotalCents)}</span>
         </div>
-        <div className="flex justify-between mono text-[11px] text-[#888]">
-          <span>GST</span><span>{centsToDisplay(order.taxCents)}</span>
+        <div className="flex justify-between items-center mono text-[11px] text-[#888]">
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input 
+              type="checkbox" 
+              checked={order.applyGst !== false}
+              onChange={(e) => toggleGst.mutate({ orderId: order.id, applyGst: e.target.checked })}
+              disabled={!canModify || toggleGst.isPending}
+              className="accent-[var(--accent)]"
+            />
+            <span>APPLY GST</span>
+          </label>
+          <span>{centsToDisplay(order.taxCents)}</span>
         </div>
         <div className="flex justify-between mono text-sm font-bold pt-1 border-t"
              style={{ borderColor: "var(--border)", color: "var(--accent)" }}>
