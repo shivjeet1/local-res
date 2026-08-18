@@ -99,6 +99,27 @@ pub async fn remove_order_item(
 }
 
 #[tauri::command]
+pub async fn toggle_order_gst(
+    payload: serde_json::Value,
+    pool: State<'_, DbPool>,
+    trigger: State<'_, SyncTrigger>,
+) -> Res<Order> {
+    let order_id = payload.get("orderId").and_then(|v| v.as_str()).unwrap_or("").to_string();
+    let apply_gst = payload.get("applyGst").and_then(|v| v.as_bool()).unwrap_or(true);
+    let pool = pool.inner().clone();
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        let conn = pool.get().map_err(|e| e.to_string())?;
+        db::toggle_order_gst(&*conn, &order_id, apply_gst)
+            .map(ApiResponse::ok)
+            .map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?;
+    if result.is_ok() { trigger.0.try_send(()).ok(); }
+    result
+}
+
+#[tauri::command]
 pub async fn update_order_status(
     payload: UpdateOrderStatusPayload,
     pool: State<'_, DbPool>,

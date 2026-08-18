@@ -51,6 +51,7 @@ pub struct Order {
     pub device_id:      String,
     pub status:         OrderStatus,
     pub notes:          Option<String>,
+    pub apply_gst:      bool,
     pub subtotal_cents: i64,
     pub tax_cents:      i64,
     pub total_cents:    i64,

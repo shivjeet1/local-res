@@ -14,6 +14,7 @@ pub type DbPool = Pool<SqliteConnectionManager>;
 const MIGRATIONS: &[&str] = &[
     include_str!("../../migrations/001_initial.sql"),
     include_str!("../../migrations/002_tables_checkpoint.sql"),
+    include_str!("../../migrations/003_add_apply_gst.sql"),
 ];
 
 pub fn init_pool(db_path: &Path) -> Result<DbPool, String> {

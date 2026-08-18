@@ -89,15 +89,15 @@ fn main() {
                     // cloud has our latest before we pull (avoids us
                     // immediately getting our own rows back as conflicts).
                     match sync::push_dirty(pool.clone(), device_id, restaurant_id, jwt).await {
-                        Ok(n) if n > 0 => log::info!("[sync] pushed {n} rows"),
+                        Ok(n) if n > 0 => println!("[sync] pushed {n} rows"),
                         Ok(_)          => {}
-                        Err(e)         => log::warn!("[sync] push error: {e}"),
+                        Err(e)         => println!("[sync] push error: {e}"),
                     }
 
                     match sync::pull_from_cloud(pool, rid2, jwt2).await {
-                        Ok(n) if n > 0 => log::info!("[sync] pulled {n} rows"),
+                        Ok(n) if n > 0 => println!("[sync] pulled {n} rows"),
                         Ok(_)          => {}
-                        Err(e)         => log::warn!("[sync] pull error: {e}"),
+                        Err(e)         => println!("[sync] pull error: {e}"),
                     }
                 }
             });
@@ -118,6 +118,7 @@ fn main() {
             commands::orders::add_order_item,
             commands::orders::remove_order_item,
             commands::orders::update_order_status,
+            commands::orders::toggle_order_gst,
             commands::orders::void_order,
             sync::trigger_sync,
             commands::printer::print_receipt,

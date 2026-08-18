@@ -10,7 +10,7 @@ use crate::models::order::{
 pub fn get_order(conn: &Connection, id: &str) -> Result<Order, PosError> {
     let mut order = conn.query_row(
         "SELECT id, restaurant_id, table_id, user_id, device_id, status,
-                notes, subtotal_cents, tax_cents, total_cents,
+                notes, apply_gst, subtotal_cents, tax_cents, total_cents,
                 paid_at, created_at, updated_at, deleted_at, synced_at
          FROM orders WHERE id = ?1 AND deleted_at IS NULL",
         params![id],
@@ -27,7 +27,7 @@ pub fn get_order(conn: &Connection, id: &str) -> Result<Order, PosError> {
 pub fn list_open_orders(conn: &Connection, restaurant_id: &str) -> Result<Vec<Order>, PosError> {
     let mut stmt = conn.prepare(
         "SELECT id, restaurant_id, table_id, user_id, device_id, status,
-                notes, subtotal_cents, tax_cents, total_cents,
+                notes, apply_gst, subtotal_cents, tax_cents, total_cents,
                 paid_at, created_at, updated_at, deleted_at, synced_at
          FROM orders
          WHERE restaurant_id = ?1
@@ -70,9 +70,9 @@ pub fn create_order(
     conn.execute(
         "INSERT INTO orders
             (id, restaurant_id, table_id, user_id, device_id,
-             status, notes, subtotal_cents, tax_cents, total_cents,
+             status, notes, apply_gst, subtotal_cents, tax_cents, total_cents,
              created_at, updated_at, _synced)
-         VALUES (?1,?2,?3,?4,?5,'OPEN',?6,0,0,0,?7,?7,0)",
+         VALUES (?1,?2,?3,?4,?5,'OPEN',?6,1,0,0,0,?7,?7,0)",
         params![id, restaurant_id, payload.table_id, user_id, device_id, payload.notes, now],
     )?;
     get_order(conn, &id)
@@ -162,8 +162,29 @@ pub fn void_order(conn: &Connection, order_id: &str) -> Result<(), PosError> {
     Ok(())
 }
 
+pub fn toggle_order_gst(
+    conn: &Connection,
+    order_id: &str,
+    apply_gst: bool,
+) -> Result<Order, PosError> {
+    let now = now_ms();
+    conn.execute(
+        "UPDATE orders SET apply_gst = ?1, updated_at = ?2, _synced = 0
+         WHERE id = ?3 AND deleted_at IS NULL",
+        params![apply_gst, now, order_id],
+    )?;
+    recalculate_order_totals(conn, order_id)?;
+    get_order(conn, order_id)
+}
+
 fn recalculate_order_totals(conn: &Connection, order_id: &str) -> Result<(), PosError> {
-    let (subtotal, tax): (i64, i64) = conn.query_row(
+    let apply_gst: bool = conn.query_row(
+        "SELECT apply_gst FROM orders WHERE id = ?1",
+        params![order_id],
+        |r| r.get(0),
+    ).unwrap_or(true);
+
+    let (subtotal, mut tax): (i64, i64) = conn.query_row(
         "SELECT
             COALESCE(SUM(oi.quantity * oi.unit_price_cents), 0),
             COALESCE(SUM(CAST(oi.quantity * oi.unit_price_cents * p.tax_rate_pct / 100.0 AS INTEGER)), 0)
@@ -173,6 +194,11 @@ fn recalculate_order_totals(conn: &Connection, order_id: &str) -> Result<(), Pos
         params![order_id],
         |r| Ok((r.get(0)?, r.get(1)?)),
     )?;
+    
+    if !apply_gst {
+        tax = 0;
+    }
+    
     let now = now_ms();
     conn.execute(
         "UPDATE orders SET subtotal_cents=?1, tax_cents=?2, total_cents=?3,
@@ -194,14 +220,15 @@ fn map_order(r: &rusqlite::Row<'_>) -> rusqlite::Result<Order> {
         status: OrderStatus::try_from(status_str)
             .map_err(|e| rusqlite::Error::InvalidParameterName(e))?,
         notes:          r.get(6)?,
-        subtotal_cents: r.get(7)?,
-        tax_cents:      r.get(8)?,
-        total_cents:    r.get(9)?,
-        paid_at:        r.get(10)?,
-        created_at:     r.get(11)?,
-        updated_at:     r.get(12)?,
-        deleted_at:     r.get(13)?,
-        synced_at:      r.get(14)?,
+        apply_gst:      r.get(7)?,
+        subtotal_cents: r.get(8)?,
+        tax_cents:      r.get(9)?,
+        total_cents:    r.get(10)?,
+        paid_at:        r.get(11)?,
+        created_at:     r.get(12)?,
+        updated_at:     r.get(13)?,
+        deleted_at:     r.get(14)?,
+        synced_at:      r.get(15)?,
         items:          vec![],
     })
 }
