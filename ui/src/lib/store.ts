@@ -131,6 +131,8 @@ export const usePosStore = create<PosStore>()(
       partialize: (s) => ({
         restaurantId: s.restaurantId,
         deviceId:     s.deviceId,
+        jwt:          s.jwt,
+        user:         s.user,
       }),
     }
   )

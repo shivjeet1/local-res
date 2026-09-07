@@ -2,7 +2,8 @@
 // src/app/pos/admin/page.tsx — ADMIN only
 
 import { useState } from "react";
-import { useCurrentUser, useDailyReport, useAdminUsers, useDeleteUserMutation } from "@/lib/queries";
+import { usePosStore } from "@/lib/store";
+import { useCurrentUser, useDailyReport, useAdminUsers, useCreateUserMutation, useDeleteUserMutation } from "@/lib/queries";
 import { centsToDisplay } from "@/lib/ipc";
 import { useRouter } from "next/navigation";
 
@@ -61,6 +62,7 @@ export default function AdminPage() {
 function ReportTab() {
   const today = new Date().toISOString().split("T")[0];
   const { data: report, isLoading } = useDailyReport();
+  const { jwt } = usePosStore();
 
   const stat = (label: string, value: string, color = "var(--accent)") => (
     <div className="p-5 border" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
@@ -69,10 +71,29 @@ function ReportTab() {
     </div>
   );
 
+  async function handleExportCSV() {
+    const url = `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000"}/admin/reports/export?date=${today}`;
+    const res = await fetch(url, { headers: { "Authorization": `Bearer ${jwt}` } });
+    if (!res.ok) return alert("Failed to export CSV");
+    
+    const blob = await res.blob();
+    const link = document.createElement("a");
+    link.href = window.URL.createObjectURL(blob);
+    link.download = `sales_report_${today}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
+
   return (
     <div className="max-w-2xl space-y-4">
-      <div className="mono text-[10px] text-[#444] tracking-widest">
-        DAILY REPORT · {today}
+      <div className="flex justify-between items-center">
+        <div className="mono text-[10px] text-[#444] tracking-widest">
+          DAILY REPORT · {today}
+        </div>
+        <button onClick={handleExportCSV} className="mono text-[10px] tracking-widest px-4 py-2 border transition-colors hover:bg-white/5" style={{ borderColor: "var(--border)", color: "var(--accent)" }}>
+          EXPORT CSV
+        </button>
       </div>
 
       {isLoading ? (
@@ -101,53 +122,107 @@ function ReportTab() {
 function UsersTab() {
   const { data: users = [], isLoading } = useAdminUsers();
   const deleteUser = useDeleteUserMutation();
+  const createUser = useCreateUserMutation();
   const { data: self } = useCurrentUser();
+
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [role, setRole] = useState("STAFF");
+  const [errorMsg, setErrorMsg] = useState("");
 
   const ROLE_COLOR: Record<string, string> = {
     ADMIN: "var(--accent)", STAFF: "#3b82f6", KITCHEN: "#f59e0b",
   };
 
+  const handleCreateUser = (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMsg("");
+    createUser.mutate({ name, email, password, role }, {
+      onSuccess: () => {
+        setName("");
+        setEmail("");
+        setPassword("");
+        setRole("STAFF");
+      },
+      onError: (err: any) => {
+        setErrorMsg(err.message || "Failed to create user");
+      }
+    });
+  };
+
   return (
-    <div className="max-w-2xl space-y-2">
-      <div className="mono text-[10px] text-[#444] tracking-widest mb-4">STAFF ACCOUNTS</div>
-
-      {isLoading && (
-        <div className="mono text-[11px] text-[#444] animate-pulse tracking-widest">
-          LOADING...
-        </div>
-      )}
-
-      {users.map(u => (
-        <div key={u.id} className="flex items-center gap-4 px-4 py-3 border"
-             style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
-          <div className="flex-1">
-            <div className="text-sm text-[#f0f0f0]">{u.name}</div>
-            <div className="mono text-[11px] text-[#888]">{u.email}</div>
+    <div className="max-w-2xl space-y-6">
+      {/* Create User Form */}
+      <div className="border p-4 space-y-4" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
+        <div className="mono text-[10px] text-[#444] tracking-widest">CREATE NEW USER</div>
+        {errorMsg && (
+          <div className="p-2 border mono text-[11px]" style={{ borderColor: "#ef444455", color: "#ef4444", background: "#ef444411" }}>
+            {errorMsg}
           </div>
-          <span className="mono text-[10px] px-2 py-0.5"
-                style={{ color: ROLE_COLOR[u.role], border: `1px solid ${ROLE_COLOR[u.role]}44` }}>
-            {u.role}
-          </span>
-          {u.id !== self?.id && (
-            <button
-              onClick={() => {
-                if (confirm(`Delete user ${u.name}?`)) deleteUser.mutate(u.id);
-              }}
-              disabled={deleteUser.isPending}
-              className="mono text-[11px] px-2 py-1 disabled:opacity-40"
-              style={{ color: "#ef4444" }}>
-              DEL
-            </button>
-          )}
-        </div>
-      ))}
+        )}
+        <form onSubmit={handleCreateUser} className="grid grid-cols-2 gap-4">
+          <input required type="text" placeholder="Name" value={name} onChange={e => setName(e.target.value)}
+                 className="bg-transparent border p-2 mono text-sm outline-none" style={{ borderColor: "var(--border)" }} />
+          <input required type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)}
+                 className="bg-transparent border p-2 mono text-sm outline-none" style={{ borderColor: "var(--border)" }} />
+          <input required type="password" placeholder="Password (min 8 char)" value={password} onChange={e => setPassword(e.target.value)}
+                 className="bg-transparent border p-2 mono text-sm outline-none" style={{ borderColor: "var(--border)" }} />
+          <select value={role} onChange={e => setRole(e.target.value)}
+                  className="bg-transparent border p-2 mono text-sm outline-none" style={{ borderColor: "var(--border)" }}>
+            <option value="STAFF">STAFF</option>
+            <option value="ADMIN">ADMIN</option>
+            <option value="KITCHEN">KITCHEN</option>
+          </select>
+          <button type="submit" disabled={createUser.isPending}
+                  className="col-span-2 py-2 mono text-sm tracking-widest font-bold disabled:opacity-50 text-black"
+                  style={{ background: "var(--accent)" }}>
+            {createUser.isPending ? "CREATING..." : "CREATE USER"}
+          </button>
+        </form>
+      </div>
 
-      {!isLoading && users.length === 0 && (
-        <div className="p-6 border text-center mono text-[11px] text-[#444]"
-             style={{ borderColor: "var(--border)" }}>
-          NO USERS FOUND
-        </div>
-      )}
+      <div className="space-y-2">
+        <div className="mono text-[10px] text-[#444] tracking-widest mb-4">STAFF ACCOUNTS</div>
+
+        {isLoading && (
+          <div className="mono text-[11px] text-[#444] animate-pulse tracking-widest">
+            LOADING...
+          </div>
+        )}
+
+        {users.map(u => (
+          <div key={u.id} className="flex items-center gap-4 px-4 py-3 border"
+               style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
+            <div className="flex-1">
+              <div className="text-sm text-[#f0f0f0]">{u.name}</div>
+              <div className="mono text-[11px] text-[#888]">{u.email}</div>
+            </div>
+            <span className="mono text-[10px] px-2 py-0.5"
+                  style={{ color: ROLE_COLOR[u.role], border: `1px solid ${ROLE_COLOR[u.role]}44` }}>
+              {u.role}
+            </span>
+            {u.id !== self?.id && (
+              <button
+                onClick={() => {
+                  if (confirm(`Delete user ${u.name}?`)) deleteUser.mutate(u.id);
+                }}
+                disabled={deleteUser.isPending}
+                className="mono text-[11px] px-2 py-1 disabled:opacity-40"
+                style={{ color: "#ef4444" }}>
+                DEL
+              </button>
+            )}
+          </div>
+        ))}
+
+        {!isLoading && users.length === 0 && (
+          <div className="p-6 border text-center mono text-[11px] text-[#444]"
+               style={{ borderColor: "var(--border)" }}>
+            NO USERS FOUND
+          </div>
+        )}
+      </div>
     </div>
   );
 }

@@ -2,6 +2,8 @@
 // Single file allowed to call invoke().
 // Falls back to full mock when running outside Tauri (browser dev).
 
+import { usePosStore } from "./store";
+
 const isTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 
 async function invoke<T>(command: string, args?: Record<string, unknown>): Promise<T> {
@@ -9,7 +11,56 @@ async function invoke<T>(command: string, args?: Record<string, unknown>): Promi
     const { invoke: tauriInvoke } = await import("@tauri-apps/api/core");
     return tauriInvoke<T>(command, args);
   }
-  return devMock<T>(command, args);
+  
+  const jwt = usePosStore.getState().jwt;
+  if (!jwt && command !== "auth_user") return devMock<T>(command, args);
+
+  try {
+    let data;
+    switch (command) {
+      case "auth_user": 
+        const res = await fetch(`${HTTP_BASE}/auth/login`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(args?.payload)
+        });
+        const body = await res.json();
+        if (!res.ok || !body.success) throw new Error(body.error || "Login failed");
+        data = body.data;
+        break;
+      case "fetch_menu": 
+        data = await apiFetch("/menu", jwt!); break;
+      case "fetch_tables": 
+        data = await apiFetch("/menu/tables", jwt!); break;
+      case "create_product":
+        data = await apiFetch("/menu/products", jwt!, { method: "POST", body: JSON.stringify(args?.payload) }); break;
+      case "delete_product":
+        data = await apiFetch(`/menu/products/${args?.id}`, jwt!, { method: "DELETE" }); break;
+      case "list_open_orders": 
+        data = await apiFetch("/orders", jwt!); break;
+      case "get_order": 
+        data = await apiFetch(`/orders/${args?.id}`, jwt!); break;
+      case "save_order_locally":
+      case "add_order_item":
+      case "remove_order_item":
+      case "toggle_order_gst":
+      case "update_order_status":
+        data = await apiFetch("/rpc", jwt!, { method: "POST", body: JSON.stringify({ command, args }) }); break;
+      case "void_order": 
+        data = await apiFetch(`/orders/${args?.orderId}`, jwt!, { method: "DELETE" }); break;
+      case "trigger_sync": 
+        data = { pushed: 0, pulled: 0 }; break;
+      case "get_current_user":
+        data = usePosStore.getState().user; if (!data) throw new Error("Not logged in"); break;
+      case "logout":
+        return { success: true } as any;
+      default:
+        return devMock<T>(command, args);
+    }
+    return { success: true, data } as any;
+  } catch (err: any) {
+    return { success: false, error: err.message } as any;
+  }
 }
 
 // ── Types ─────────────────────────────────────────────────────────────────────

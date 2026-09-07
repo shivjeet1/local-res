@@ -319,3 +319,24 @@ export function useDeleteUserMutation() {
     onSuccess:  () => qc.invalidateQueries({ queryKey: ["admin", "users"] }),
   });
 }
+
+export function useCreateUserMutation() {
+  const qc = useQueryClient();
+  const { jwt } = usePosStore();
+  
+  return useMutation({
+    mutationFn: async (payload: any) => {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000"}/admin/users`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${jwt}` },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.error || "Failed to create user");
+      return data.data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin", "users"] });
+    }
+  });
+}
