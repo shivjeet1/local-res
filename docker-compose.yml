@@ -29,6 +29,7 @@ services:
     environment:
       - DATABASE_URL=postgresql://postgres:password123@postgres:5432/local_res_db?schema=public
       - PORT=4000
+      - JWT_SECRET=${JWT_SECRET:-production_ready_secret_key_999}
     ports:
       - "4000:4000"
     depends_on:
@@ -37,7 +38,7 @@ services:
     networks:
       - pos-network
     command: >
-      sh -c "cd backend && npx prisma migrate deploy && node dist/app.js"
+      sh -c "cd backend && npx prisma migrate deploy && node dist/prisma/seed.js || true && node dist/app.js"
 
   # 3. UI Service (Next.js)
   ui:
