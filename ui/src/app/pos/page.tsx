@@ -44,7 +44,7 @@ function OrdersPanel({
   const canCreate = user?.role !== "KITCHEN";
 
   return (
-    <div className="w-64 flex flex-col border-r flex-shrink-0"
+    <div className={`w-full md:w-64 flex-col border-r flex-shrink-0 md:flex ${activeId ? "hidden" : "flex"}`}
          style={{ borderColor: "var(--border)", background: "var(--surface-1)" }}>
 
       <div className="flex items-center justify-between px-3 py-3 border-b"
@@ -109,9 +109,7 @@ function OrdersPanel({
 
 // ── Middle: Menu grid ─────────────────────────────────────────────────────────
 
-function MenuPanel({
-  onAddItem, activeOrderId,
-}: { onAddItem: (p: Product) => void; activeOrderId: string | null }) {
+function MenuPanel({ onClearActiveId, onAddItem, activeOrderId, setShowCartOnMobile }: { onClearActiveId?: () => void; onAddItem: (p: Product) => void; activeOrderId: string | null; setShowCartOnMobile?: (v: boolean) => void }) {
   const { data: menu } = useMenu();
   const [activeCat, setActiveCat] = useState<string | null>(null);
   const user = usePosStore((s) => s.user);
@@ -125,8 +123,13 @@ function MenuPanel({
   );
 
   return (
-    <div className="flex-1 flex flex-col min-w-0">
+    <div className={`flex-1 flex flex-col min-w-0 ${!activeOrderId ? 'hidden md:flex' : 'flex'}`}>
       {/* Category tabs */}
+      <div className="md:hidden flex border-b px-3 py-2 bg-surface-2">
+        <button onClick={() => onClearActiveId?.()} className="mono text-[10px] text-accent tracking-widest">
+          ← BACK TO ORDERS
+        </button>
+      </div>
       <div className="flex border-b overflow-x-auto flex-shrink-0"
            style={{ borderColor: "var(--border)", background: "var(--surface-1)" }}>
         {categories.map(cat => {
@@ -145,8 +148,24 @@ function MenuPanel({
         })}
       </div>
 
+      {activeOrderId && (
+        <button
+          onClick={() => setShowCartOnMobile && setShowCartOnMobile(true)}
+          className="md:hidden absolute bottom-4 right-4 z-30 px-6 py-3 rounded-full shadow-lg mono text-sm font-bold"
+          style={{ background: "var(--accent)", color: "var(--background)" }}>
+          VIEW CART
+        </button>
+      )}
+      {activeOrderId && setShowCartOnMobile && (
+        <button
+          onClick={() => setShowCartOnMobile(true)}
+          className="md:hidden absolute bottom-20 right-4 z-30 px-6 py-3 rounded-full shadow-lg mono text-sm font-bold"
+          style={{ background: "var(--accent)", color: "var(--background)" }}>
+          VIEW CART
+        </button>
+      )}
       {/* Grid */}
-      <div className="flex-1 overflow-y-auto p-3 grid grid-cols-3 gap-2 content-start"
+      <div className="flex-1 overflow-y-auto p-3 grid grid-cols-2 md:grid-cols-3 gap-2 content-start"
            style={{ scrollbarWidth: "thin" }}>
         {filtered.map(product => (
           <button key={product.id}
@@ -201,8 +220,9 @@ function MenuPanel({
 // ── Right: Cart / active order ────────────────────────────────────────────────
 
 function CartPanel({
-  orderId, productMap, tableMap,
-}: { orderId: string; productMap: Map<string, Product>; tableMap: Map<string, string> }) {
+ orderId, productMap, tableMap, showCartOnMobile, setShowCartOnMobile,
+
+}: { orderId: string; productMap: Map<string, Product>; tableMap: Map<string, string>; showCartOnMobile?: boolean; setShowCartOnMobile?: (v: boolean) => void }) {
   const { data: orders = [] } = useOpenOrders();
   const order = orders.find(o => o.id === orderId);
 
@@ -213,7 +233,7 @@ function CartPanel({
   const user         = usePosStore((s) => s.user);
 
   if (!order) return (
-    <div className="w-80 flex items-center justify-center border-l flex-shrink-0"
+    <div className="w-full md:w-80 flex items-center justify-center md:border-l flex-shrink-0 absolute md:relative inset-0 md:inset-auto z-40"
          style={{ borderColor: "var(--border)", background: "var(--surface-1)" }}>
       <span className="mono text-[11px] text-[#444]">ORDER NOT FOUND</span>
     </div>
@@ -227,10 +247,20 @@ function CartPanel({
   const tableLabel  = order.tableId ? tableMap.get(order.tableId) : null;
 
   return (
-    <div className="w-80 flex flex-col border-l flex-shrink-0"
+    <div className={`w-full md:w-80 flex flex-col md:border-l flex-shrink-0 absolute md:relative inset-0 md:inset-auto z-40 bg-surface-1 md:bg-transparent transition-transform transform ${showCartOnMobile ? "translate-x-0" : "translate-x-full md:translate-x-0"}`}
          style={{ borderColor: "var(--border)", background: "var(--surface-1)" }}>
 
       {/* Header */}
+      {setShowCartOnMobile && (
+        <button onClick={() => setShowCartOnMobile(false)} className="md:hidden p-3 border-b mono text-[10px] text-accent tracking-widest bg-surface-2">
+          ← BACK TO MENU
+        </button>
+      )}
+      {setShowCartOnMobile && (
+        <button onClick={() => setShowCartOnMobile(false)} className="md:hidden p-3 border-b mono text-[10px] text-accent tracking-widest bg-surface-2">
+          ← BACK TO MENU
+        </button>
+      )}
       <div className="px-4 py-3 border-b flex-shrink-0" style={{ borderColor: "var(--border)" }}>
         <div className="flex items-center justify-between mb-1">
           <span className="mono text-[10px] text-[#888] tracking-widest">
@@ -403,6 +433,7 @@ function playReadyChime() {
 
 export default function PosPage() {
   const [activeOrderId, setActiveOrderId] = useState<string | null>(null);
+  const [showCartOnMobile, setShowCartOnMobile] = useState(false);
   const [toast, setToast]                 = useState<string | null>(null);
   const toastTimer                        = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -456,11 +487,11 @@ export default function PosPage() {
       )}
 
       <OrdersPanel activeId={activeOrderId} onSelect={setActiveOrderId} tableMap={tableMap} />
-      <MenuPanel   onAddItem={handleAddItem} activeOrderId={activeOrderId} />
+      <MenuPanel onClearActiveId={() => setActiveOrderId(null)} onAddItem={handleAddItem} activeOrderId={activeOrderId} setShowCartOnMobile={setShowCartOnMobile} />
       {activeOrderId
-        ? <CartPanel orderId={activeOrderId} productMap={productMap} tableMap={tableMap} />
+        ? <CartPanel orderId={activeOrderId} productMap={productMap} tableMap={tableMap} showCartOnMobile={showCartOnMobile} setShowCartOnMobile={setShowCartOnMobile} />
         : (
-          <div className="w-80 flex items-center justify-center border-l flex-shrink-0"
+          <div className="hidden md:flex w-80 items-center justify-center border-l flex-shrink-0"
                style={{ borderColor: "var(--border)", background: "var(--surface-1)" }}>
             <div className="text-center space-y-2">
               <div className="mono text-[10px] text-[#333] tracking-widest">NO ORDER SELECTED</div>

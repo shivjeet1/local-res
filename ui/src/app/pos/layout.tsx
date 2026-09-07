@@ -4,7 +4,7 @@
 import { useCurrentUser, useLogoutMutation } from "@/lib/queries";
 import { usePosStore } from "@/lib/store";
 import { useRouter, usePathname } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 const NAV_ITEMS = [
   { href: "/pos",         label: "POS",     short: "POS"  },
@@ -34,7 +34,7 @@ export default function PosLayout({ children }: { children: React.ReactNode }) {
   }, [user, setUser, setRestaurant]);
 
   if (isLoading) return (
-    <div className="h-dvh flex items-center justify-center bg-black">
+    <div className="h-dvh flex items-center justify-center bg-background">
       <span className="mono text-[#444] text-sm animate-pulse tracking-widest">
         LOADING...
       </span>
@@ -45,22 +45,51 @@ export default function PosLayout({ children }: { children: React.ReactNode }) {
 
   const isAdmin = user.role === "ADMIN";
 
+
+  const [theme, setTheme] = useState<'light' | 'dark'>('dark');
+
+  useEffect(() => {
+    if (document.documentElement.classList.contains('dark')) {
+      setTheme('dark');
+    } else {
+      setTheme('light');
+    }
+  }, []);
+
+  const toggleTheme = () => {
+    if (theme === 'dark') {
+      document.documentElement.classList.remove('dark');
+      localStorage.theme = 'light';
+      setTheme('light');
+    } else {
+      document.documentElement.classList.add('dark');
+      localStorage.theme = 'dark';
+      setTheme('dark');
+    }
+  };
+
   async function handleLogout() {
+
     await logout.mutateAsync();
     router.replace("/");
   }
 
   return (
-    <div className="h-dvh flex bg-black overflow-hidden">
+    <div className="h-dvh flex bg-background overflow-hidden">
 
       {/* ── Sidebar nav ─────────────────────────────── */}
+      {/* ── Navigation (Sidebar on Desktop, Bottom Bar on Mobile) ─────────────────────────────── */}
       <nav
-        className="w-14 flex flex-col items-center py-4 gap-1 border-r flex-shrink-0"
+        className="
+          flex bg-surface-1 border-border z-50
+          md:w-14 md:h-full md:flex-col md:items-center md:py-4 md:gap-1 md:border-r md:border-t-0
+          w-full h-14 flex-row items-center justify-around border-t fixed bottom-0 left-0
+        "
         style={{ borderColor: "var(--border)", background: "var(--surface-1)" }}
       >
-        {/* Logo */}
+        {/* Logo (Hidden on Mobile) */}
         <div
-          className="w-9 h-9 flex items-center justify-center mb-4 flex-shrink-0"
+          className="hidden md:flex w-9 h-9 items-center justify-center mb-4 flex-shrink-0"
           style={{ border: "1px solid var(--accent)", color: "var(--accent)" }}
         >
           <span className="mono text-[9px] font-bold leading-none">POS</span>
@@ -75,26 +104,36 @@ export default function PosLayout({ children }: { children: React.ReactNode }) {
               key={item.href}
               onClick={() => router.push(item.href)}
               title={item.label}
-              className="w-10 h-10 flex items-center justify-center transition-all flex-shrink-0"
+              className="w-12 h-10 md:w-10 md:h-10 flex items-center justify-center transition-all flex-shrink-0"
               style={{
                 color:       active ? "var(--accent)"        : "var(--text-muted)",
                 background:  active ? "var(--accent-dim)"    : "transparent",
                 border:      active ? "1px solid var(--accent-border)" : "1px solid transparent",
               }}
             >
-              <span className="mono text-[9px] font-bold tracking-wide leading-none">
+              <span className="mono text-[10px] md:text-[9px] font-bold tracking-wide leading-none">
                 {item.short}
               </span>
             </button>
           );
         })}
 
-        <div className="flex-1" />
+        <div className="hidden md:flex flex-1" />
 
-        {/* Role badge — rotated */}
+        {/* Theme Toggle */}
+        <button
+          onClick={toggleTheme}
+          title="Toggle Theme"
+          className="w-10 h-10 flex items-center justify-center mono text-[14px] transition-colors flex-shrink-0"
+          style={{ color: "var(--text-muted)" }}
+        >
+          {theme === 'dark' ? '☼' : '☾'}
+        </button>
+
+        {/* Role badge (Hidden on Mobile) */}
         <div
-          className="mono text-[8px] text-[#333] tracking-widest mb-3"
-          style={{ writingMode: "vertical-rl", transform: "rotate(180deg)" }}
+          className="hidden md:block mono text-[8px] text-muted tracking-widest md:mb-3"
+          style={{ writingMode: "vertical-rl", transform: "rotate(180deg)", color: "var(--text-muted)" }}
         >
           {user.role}
         </div>
@@ -103,7 +142,7 @@ export default function PosLayout({ children }: { children: React.ReactNode }) {
         <button
           onClick={handleLogout}
           title="Logout"
-          className="w-10 h-10 flex items-center justify-center mono text-[9px]
+          className="w-10 h-10 flex items-center justify-center mono text-[10px] md:text-[9px]
                      font-bold tracking-wide transition-colors flex-shrink-0"
           style={{ color: "var(--text-muted)" }}
           onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = "#ef4444"}
@@ -114,7 +153,7 @@ export default function PosLayout({ children }: { children: React.ReactNode }) {
       </nav>
 
       {/* ── Main area ────────────────────────────────── */}
-      <div className="flex-1 min-w-0 overflow-hidden">
+      <div className="flex-1 min-w-0 overflow-hidden pb-14 md:pb-0">
         {children}
       </div>
     </div>

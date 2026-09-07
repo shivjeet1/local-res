@@ -5,35 +5,57 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  /* AMOLED core */
-  --black:        #000000;
-  --surface-1:    #0a0a0a;
-  --surface-2:    #111111;
-  --surface-3:    #1a1a1a;
-  --border:       #222222;
-  --border-bright:#333333;
+@layer base {
+  :root {
+    --background: #f9fafb;
+    --foreground: #111827;
+    
+    --surface-1: #ffffff;
+    --surface-2: #f3f4f6;
+    --surface-3: #e5e7eb;
+    
+    --border: #e5e7eb;
+    --border-bright: #d1d5db;
 
-  /* Text */
-  --text-primary:   #f0f0f0;
-  --text-secondary: #888888;
-  --text-muted:     #444444;
+    --muted: #6b7280;
+    --dim: #9ca3af;
 
-  /* Accent — single sharp green, terminal-style */
-  --accent:         #00ff88;
-  --accent-dim:     #00ff8822;
-  --accent-border:  #00ff8844;
+    --accent: #2563eb;
+    --accent-dim: #dbeafe;
+    --accent-border: #bfdbfe;
 
-  /* Status */
-  --status-open:     #3b82f6;
-  --status-kitchen:  #f59e0b;
-  --status-ready:    #00ff88;
-  --status-done:     #444444;
-  --status-void:     #ef4444;
+    /* Status colors remain relatively consistent */
+    --status-open:     #3b82f6;
+    --status-kitchen:  #f59e0b;
+    --status-ready:    #10b981;
+    --status-done:     #9ca3af;
+    --status-void:     #ef4444;
+  }
 
-  /* Font */
-  --font-mono:  'JetBrains Mono', monospace;
-  --font-body:  'Space Grotesk', sans-serif;
+  .dark {
+    --background: #000000;
+    --foreground: #f0f0f0;
+
+    --surface-1: #0a0a0a;
+    --surface-2: #111111;
+    --surface-3: #1a1a1a;
+
+    --border: #222222;
+    --border-bright: #333333;
+
+    --muted: #888888;
+    --dim: #444444;
+
+    --accent: #00ff88;
+    --accent-dim: #00ff8822;
+    --accent-border: #00ff8844;
+
+    --status-open:     #3b82f6;
+    --status-kitchen:  #f59e0b;
+    --status-ready:    #00ff88;
+    --status-done:     #444444;
+    --status-void:     #ef4444;
+  }
 }
 
 * {
@@ -43,13 +65,13 @@
 }
 
 html, body {
-  background: var(--black);
-  color: var(--text-primary);
-  font-family: var(--font-body);
+  background: var(--background);
+  color: var(--foreground);
+  font-family: 'Space Grotesk', sans-serif;
   font-size: 14px;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
-  overflow: hidden;           /* POS app — no page scroll */
+  overflow: hidden;
   height: 100dvh;
 }
 
@@ -63,40 +85,29 @@ html, body {
 .scrollable::-webkit-scrollbar-thumb { background: var(--border-bright); border-radius: 2px; }
 
 /* Mono label utility */
-.mono { font-family: var(--font-mono); }
+.mono { font-family: 'JetBrains Mono', monospace; }
 
-/* Accent pulse for live indicators */
+/* Animations */
 @keyframes pulse-accent {
   0%, 100% { opacity: 1; }
   50%       { opacity: 0.4; }
 }
 .pulse { animation: pulse-accent 2s ease-in-out infinite; }
 
-/* Slide-in from right */
 @keyframes slide-in-right {
   from { transform: translateX(100%); opacity: 0; }
   to   { transform: translateX(0);    opacity: 1; }
 }
 .slide-in { animation: slide-in-right 0.18s ease-out; }
 
-/* Fade up */
+@keyframes slide-up {
+  from { transform: translateY(100%); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+.slide-up { animation: slide-up 0.2s cubic-bezier(0.16, 1, 0.3, 1); }
+
 @keyframes fade-up {
   from { transform: translateY(8px); opacity: 0; }
   to   { transform: translateY(0);   opacity: 1; }
 }
 .fade-up { animation: fade-up 0.15s ease-out; }
-
-/* Scanline texture overlay */
-.scanlines::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background: repeating-linear-gradient(
-    0deg,
-    transparent,
-    transparent 2px,
-    rgba(0,0,0,0.08) 2px,
-    rgba(0,0,0,0.08) 4px
-  );
-}

@@ -1,0 +1,17 @@
+{
+  "name": "Local Restaurant POS",
+  "short_name": "POS",
+  "description": "Cross-platform restaurant Point of Sale",
+  "start_url": "/pos",
+  "display": "standalone",
+  "background_color": "#000000",
+  "theme_color": "#000000",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "/icon.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    }
+  ]
+}

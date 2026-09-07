@@ -1,24 +1,29 @@
-// tailwind.config.ts
 import type { Config } from "tailwindcss";
 
 const config: Config = {
+  darkMode: 'class',
   content: ["./src/**/*.{ts,tsx}"],
   theme: {
     extend: {
       colors: {
-        black:       "#000000",
+        background: "var(--background)",
+        foreground: "var(--foreground)",
         surface: {
-          1: "#0a0a0a",
-          2: "#111111",
-          3: "#1a1a1a",
+          1: "var(--surface-1)",
+          2: "var(--surface-2)",
+          3: "var(--surface-3)",
         },
         border: {
-          DEFAULT: "#222222",
-          bright:  "#333333",
+          DEFAULT: "var(--border)",
+          bright:  "var(--border-bright)",
         },
-        accent:  "#00ff88",
-        muted:   "#888888",
-        dim:     "#444444",
+        accent: {
+          DEFAULT: "var(--accent)",
+          dim: "var(--accent-dim)",
+          border: "var(--accent-border)",
+        },
+        muted: "var(--muted)",
+        dim: "var(--dim)",
       },
       fontFamily: {
         mono: ["JetBrains Mono", "monospace"],
