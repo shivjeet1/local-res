@@ -8,6 +8,7 @@ import { menuRoutes }    from "./routes/menu.js";
 import { orderRoutes }   from "./routes/orders.js";
 import { syncRoutes }    from "./routes/sync.js";
 import { adminRoutes }   from "./routes/admin.js";
+import { rpcRoutes }     from "./routes/rpc.js";
 import { realtimeRoutes } from "./routes/realtime.js";
 import { tenantContext } from "./prisma/client.js";
 
@@ -23,7 +24,7 @@ export async function buildApp() {
 
   await app.register(cors, {
     // Desktop app uses Tauri custom protocol — CORS still required for dev
-    origin: process.env.ALLOWED_ORIGINS?.split(",") ?? ["tauri://localhost"],
+    origin: true,
     credentials: true,
   });
 
@@ -45,6 +46,7 @@ export async function buildApp() {
   await app.register(orderRoutes, { prefix: "/orders" });
   await app.register(syncRoutes,  { prefix: "/sync" });
   await app.register(adminRoutes, { prefix: "/admin" });
+  await app.register(rpcRoutes,   { prefix: "/rpc" });
   await app.register(realtimeRoutes);
 
   // ── Global error handler ─────────────────────────────────────────────────

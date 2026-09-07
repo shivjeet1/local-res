@@ -74,6 +74,60 @@ export async function adminRoutes(app: FastifyInstance) {
     return reply.send({ success: true, data: devices });
   });
 
+  
+  // GET /admin/reports/export — CSV export of daily sales
+  app.get("/reports/export", { preHandler: requireRole("ADMIN") }, async (req, reply) => {
+    const { restaurantId } = req.jwtPayload!;
+    const query = req.query as Record<string, string>;
+    const date  = query.date ? new Date(query.date) : new Date();
+
+    const start = new Date(date); start.setHours(0,0,0,0);
+    const end   = new Date(date); end.setHours(23,59,59,999);
+
+    const orders = await prisma.order.findMany({
+      where: {
+        restaurantId,
+        status: "COMPLETED",
+        paidAt: { gte: start, lte: end },
+        deletedAt: null,
+      },
+      include: {
+        table: true,
+        items: {
+          where: { deletedAt: null },
+          include: { product: true }
+        }
+      },
+      orderBy: { paidAt: "asc" }
+    });
+
+    // Generate CSV
+    const headers = ["Order ID", "Time", "Table", "Status", "Subtotal", "Tax", "Total", "Items"];
+    const rows = orders.map(o => {
+      const time = o.paidAt ? o.paidAt.toLocaleTimeString('en-US', { hour12: false }) : '';
+      const table = o.table ? o.table.label : 'N/A';
+      const itemsStr = o.items.map(i => `${i.quantity}x ${i.product.name}`).join("; ");
+      
+      return [
+        o.id,
+        time,
+        table,
+        o.status,
+        (o.subtotalCents / 100).toFixed(2),
+        (o.taxCents / 100).toFixed(2),
+        (o.totalCents / 100).toFixed(2),
+        `"${itemsStr}"`
+      ].join(",");
+    });
+
+    const csvData = [headers.join(","), ...rows].join("\n");
+    const dateStr = start.toISOString().split("T")[0];
+
+    reply.header('Content-Type', 'text/csv');
+    reply.header('Content-Disposition', `attachment; filename="sales_report_${dateStr}.csv"`);
+    return reply.send(csvData);
+  });
+
   // GET /admin/reports/daily — simple daily sales totals
   app.get("/reports/daily", { preHandler: requireRole("ADMIN") }, async (req, reply) => {
     const { restaurantId } = req.jwtPayload!;
