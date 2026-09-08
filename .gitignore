@@ -39,3 +39,4 @@ target/
 
 # Misc
 .vercel
+\n# K8s Secrets\nk8s/secrets.yaml\n
