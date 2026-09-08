@@ -87,6 +87,20 @@ kubectl apply -f k8s/backend.yaml
 kubectl apply -f k8s/frontend.yaml
 ```
 
+#### Building & Updating Images (Latest Code)
+
+Since the Kubernetes manifests use `imagePullPolicy: Never` to look for local images, you need to rebuild your Docker images whenever you make code changes, and then tell Kubernetes to restart the pods to pick up the new images.
+
+```bash
+# 1. Rebuild the Docker images with your latest code
+docker compose build
+
+# 2. Restart the Kubernetes deployments to pull the fresh images
+kubectl rollout restart deployment/backend deployment/ui
+```
+
+*(Note: If you are using Minikube instead of Docker Desktop, remember to run `eval $(minikube docker-env)` before running `docker compose build` so the images are built directly into Minikube's Docker daemon).*
+
 #### Useful Management Commands
 
 **Monitoring & Status:**
