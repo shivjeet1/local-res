@@ -11,7 +11,7 @@
 
 This project is structured as an **npm workspace** containing the `backend`, `ui`, `tauri` (desktop), and `packages/shared` directories.
 
-### 0. Install Dependencies
+### Install Dependencies
 
 Run `npm install` at the root of the project to install and link all workspace dependencies:
 
@@ -19,7 +19,7 @@ Run `npm install` at the root of the project to install and link all workspace d
 npm install
 ```
 
-### 1. Cloud backend
+### Cloud backend
 
 ```bash
 cp backend/.env.example backend/.env          
@@ -33,13 +33,13 @@ npm run db:seed --workspace=backend
 - Staff:   `staff@pos.dev`   / `staff1234`
 - Kitchen: `kitchen@pos.dev` / `kitchen1234`
 
-### 2. UI
+### UI
 
 ```bash
 npm run dev --workspace=ui    # starts Next.js dev server
 ```
 
-### 3. Desktop app (Tauri)
+### Desktop app (Tauri)
 
 ```bash
 npm run dev --workspace=tauri # starts Tauri + Next.js dev server
@@ -50,7 +50,7 @@ Build for production:
 npm run build --workspace=tauri # produces installer in tauri/src-tauri/target/release/bundle/
 ```
 
-### 4. Docker Compose Setup
+### Docker Compose Setup
 
 To run the entire stack (Database, Backend, and UI) using Docker Compose:
 
@@ -67,7 +67,7 @@ To stop the services:
 docker-compose down
 ```
 
-### 5. Kubernetes Setup
+### Kubernetes Setup
 
 To deploy the application to a Kubernetes cluster, apply the manifests in the `k8s` directory. Make sure you build the Docker images (`local-res-backend:latest` and `local-res-ui:latest`) first or have them available in your registry.
 
@@ -99,7 +99,7 @@ docker compose build
 kubectl rollout restart deployment/backend deployment/ui
 ```
 
-*(Note: If you are using Minikube instead of Docker Desktop, remember to run `eval $(minikube docker-env)` before running `docker compose build` so the images are built directly into Minikube's Docker daemon).*
+*(Note: If you are using Minikube instead of Docker Desktop, run `eval $(minikube docker-env)` before running `docker compose build` so the images are built directly into Minikube's Docker daemon).*
 
 #### Useful Management Commands
 
@@ -144,3 +144,7 @@ kubectl exec -it deployment/backend -- sh
 # Remove all resources defined in the k8s directory
 kubectl delete -f k8s/
 ```
+
+**delete all cluster resources**
+
+
