@@ -1,8 +1,21 @@
 "use client";
-// src/app/pos/kitchen/page.tsx — Kitchen Display System
-
 import { useOpenOrders, useUpdateStatusMutation, useMenu, useTables } from "@/lib/queries";
 import { type Order, type OrderStatus } from "@/lib/ipc";
+import { useState, useMemo } from "react";
+import {
+  DndContext,
+  DragOverlay,
+  closestCorners,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragStartEvent,
+  DragEndEvent,
+  DragOverEvent
+} from "@dnd-kit/core";
+import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 const COLUMNS: { status: OrderStatus; label: string; color: string }[] = [
   { status: "SENT_TO_KITCHEN", label: "INCOMING", color: "#f59e0b" },
@@ -20,10 +33,12 @@ function KitchenCard({
   order,
   productMap,
   tableMap,
+  isOverlay = false,
 }: {
   order: Order;
   productMap: Map<string, string>;
   tableMap: Map<string, string>;
+  isOverlay?: boolean;
 }) {
   const updateStatus = useUpdateStatusMutation();
   const isIncoming   = order.status === "SENT_TO_KITCHEN";
@@ -33,14 +48,32 @@ function KitchenCard({
   const activeItems  = order.items.filter(i => !i.deletedAt);
   const tableLabel   = order.tableId ? tableMap.get(order.tableId) : null;
 
-  return (
-    <div className="p-4 transition-all"
-         style={{
-           background: "var(--surface-2)",
-           border:     `1px solid ${isUrgent ? "#ef4444" : color}44`,
-           borderLeft: `3px solid ${isUrgent ? "#ef4444" : color}`,
-         }}>
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: order.id, data: { status: order.status } });
 
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    background: "var(--surface-2)",
+    border: `1px solid ${isUrgent ? "#ef4444" : color}44`,
+    borderLeft: `3px solid ${isUrgent ? "#ef4444" : color}`,
+    opacity: isDragging && !isOverlay ? 0.3 : 1,
+    zIndex: isOverlay ? 9999 : "auto",
+    ...(isOverlay && {
+      transform: `${CSS.Transform.toString(transform) || ""} rotate(2deg)`,
+      boxShadow: "0 25px 50px rgba(0, 0, 0, 0.5)",
+      cursor: "grabbing",
+    })
+  };
+
+  return (
+    <div ref={setNodeRef} style={style} {...attributes} {...listeners} className="p-4 transition-all relative">
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <span className="mono font-bold text-sm" style={{ color }}>
@@ -58,7 +91,7 @@ function KitchenCard({
         </span>
       </div>
 
-      <div className="space-y-2 mb-4">
+      <div className="space-y-2 mb-4 pointer-events-none">
         {activeItems.map(item => (
           <div key={item.id} className="flex items-start gap-3">
             <span className="mono text-sm font-bold w-6 text-right flex-shrink-0"
@@ -80,7 +113,7 @@ function KitchenCard({
       </div>
 
       {order.notes && (
-        <div className="mono text-[10px] px-2 py-1.5 mb-3"
+        <div className="mono text-[10px] px-2 py-1.5 mb-3 pointer-events-none"
              style={{ background: "#f59e0b11", border: "1px solid #f59e0b33", color: "#f59e0b" }}>
           NOTE: {order.notes}
         </div>
@@ -88,14 +121,53 @@ function KitchenCard({
 
       {isIncoming && (
         <button
-          onClick={() => updateStatus.mutate({ orderId: order.id, status: "READY" })}
+          onClick={(e) => { e.stopPropagation(); updateStatus.mutate({ orderId: order.id, status: "READY" }); }}
           disabled={updateStatus.isPending}
-          className="w-full py-2 mono text-sm font-bold text-black
-                     disabled:opacity-50 transition-opacity"
-          style={{ background: "#00ff88" }}>
+          onPointerDown={(e) => e.stopPropagation()}
+          className="w-full py-2 mono text-sm font-bold text-black disabled:opacity-50 transition-opacity"
+          style={{ background: "#00ff88", cursor: "pointer", zIndex: 10, position: "relative" }}>
           MARK READY ✓
         </button>
       )}
+    </div>
+  );
+}
+
+import { useDroppable } from "@dnd-kit/core";
+
+function Column({ col, orders, productMap, tableMap, isLoading }: any) {
+  const { setNodeRef } = useDroppable({ id: col.status });
+
+  return (
+    <div ref={setNodeRef} className="flex-1 flex flex-col border-r" style={{ borderColor: "var(--border)" }}>
+      <div className="px-4 py-3 border-b flex items-center justify-between flex-shrink-0"
+           style={{ borderColor: "var(--border)", background: "var(--surface-1)" }}>
+        <span className="mono text-[10px] tracking-widest font-bold" style={{ color: col.color }}>
+          {col.label}
+        </span>
+        <span className="mono text-xs px-2 py-0.5"
+              style={{ color: col.color, border: `1px solid ${col.color}44`, background: `${col.color}11` }}>
+          {orders.length}
+        </span>
+      </div>
+
+      <div className="flex-1 overflow-y-auto p-3 space-y-3" style={{ scrollbarWidth: "thin" }}>
+        <SortableContext items={orders.map((o: any) => o.id)} strategy={verticalListSortingStrategy}>
+          {isLoading && (
+            <div className="mono text-[11px] text-[#444] animate-pulse p-4 tracking-widest">
+              LOADING...
+            </div>
+          )}
+          {orders.map((o: any) => (
+            <KitchenCard key={o.id} order={o} productMap={productMap} tableMap={tableMap} />
+          ))}
+          {!isLoading && orders.length === 0 && (
+            <div className="py-12 text-center mono text-[11px] text-[#333] tracking-widest">
+              CLEAR
+            </div>
+          )}
+        </SortableContext>
+      </div>
     </div>
   );
 }
@@ -104,76 +176,78 @@ export default function KitchenPage() {
   const { data: allOrders = [], isLoading, dataUpdatedAt } = useOpenOrders();
   const { data: menu }   = useMenu();
   const { data: tables } = useTables();
+  const updateStatus = useUpdateStatusMutation();
 
-  const productMap = new Map<string, string>(
-    (menu?.products ?? []).map(p => [p.id, p.name])
+  const [activeId, setActiveId] = useState<string | null>(null);
+
+  const productMap = useMemo(() => new Map<string, string>((menu?.products ?? []).map(p => [p.id, p.name])), [menu]);
+  const tableMap = useMemo(() => new Map<string, string>((tables ?? []).map(t => [t.id, t.label])), [tables]);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor)
   );
-  const tableMap = new Map<string, string>(
-    (tables ?? []).map(t => [t.id, t.label])
-  );
+
+  const handleDragStart = (event: DragStartEvent) => {
+    setActiveId(event.active.id as string);
+  };
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    setActiveId(null);
+    const { active, over } = event;
+    if (!over) return;
+
+    const overId = over.id as string;
+    const activeOrder = allOrders.find(o => o.id === active.id);
+    if (!activeOrder) return;
+
+    let newStatus: OrderStatus | null = null;
+    if (COLUMNS.find(c => c.status === overId)) {
+      newStatus = overId as OrderStatus;
+    } else {
+      const overOrder = allOrders.find(o => o.id === overId);
+      if (overOrder) {
+        newStatus = overOrder.status;
+      }
+    }
+
+    if (newStatus && newStatus !== activeOrder.status) {
+      updateStatus.mutate({ orderId: activeOrder.id, status: newStatus });
+    }
+  };
+
+  const activeOrder = useMemo(() => allOrders.find(o => o.id === activeId), [activeId, allOrders]);
 
   return (
     <div className="h-full flex flex-col">
-
-      {/* Header */}
       <div className="flex items-center justify-between px-6 py-3 border-b flex-shrink-0"
            style={{ borderColor: "var(--border)", background: "var(--surface-1)" }}>
-        <span className="mono text-sm font-bold tracking-widest"
-              style={{ color: "var(--accent)" }}>
+        <span className="mono text-sm font-bold tracking-widest" style={{ color: "var(--accent)" }}>
           KITCHEN DISPLAY
         </span>
         <div className="flex items-center gap-3">
-          <span className="w-2 h-2 rounded-full animate-pulse inline-block"
-                style={{ background: "var(--accent)" }} />
+          <span className="w-2 h-2 rounded-full animate-pulse inline-block" style={{ background: "var(--accent)" }} />
           <span className="mono text-[10px] text-[#444]">
             {dataUpdatedAt ? new Date(dataUpdatedAt).toLocaleTimeString("en-IN") : "—"}
           </span>
         </div>
       </div>
 
-      {/* Columns */}
       <div className="flex-1 flex overflow-hidden">
-        {COLUMNS.map(col => {
-          const orders = allOrders.filter(o => o.status === col.status);
-          return (
-            <div key={col.status} className="flex-1 flex flex-col border-r"
-                 style={{ borderColor: "var(--border)" }}>
-
-              <div className="px-4 py-3 border-b flex items-center justify-between flex-shrink-0"
-                   style={{ borderColor: "var(--border)", background: "var(--surface-1)" }}>
-                <span className="mono text-[10px] tracking-widest font-bold"
-                      style={{ color: col.color }}>
-                  {col.label}
-                </span>
-                <span className="mono text-xs px-2 py-0.5"
-                      style={{
-                        color:      col.color,
-                        border:     `1px solid ${col.color}44`,
-                        background: `${col.color}11`,
-                      }}>
-                  {orders.length}
-                </span>
-              </div>
-
-              <div className="flex-1 overflow-y-auto p-3 space-y-3"
-                   style={{ scrollbarWidth: "thin" }}>
-                {isLoading && (
-                  <div className="mono text-[11px] text-[#444] animate-pulse p-4 tracking-widest">
-                    LOADING...
-                  </div>
-                )}
-                {orders.map(o => (
-                  <KitchenCard key={o.id} order={o} productMap={productMap} tableMap={tableMap} />
-                ))}
-                {!isLoading && orders.length === 0 && (
-                  <div className="py-12 text-center mono text-[11px] text-[#333] tracking-widest">
-                    CLEAR
-                  </div>
-                )}
-              </div>
-            </div>
-          );
-        })}
+        <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+          {COLUMNS.map(col => {
+            const orders = allOrders.filter(o => o.status === col.status);
+            return (
+              <Column key={col.status} col={col} orders={orders} productMap={productMap} tableMap={tableMap} isLoading={isLoading} />
+            );
+          })}
+          
+          <DragOverlay>
+            {activeOrder ? (
+              <KitchenCard order={activeOrder} productMap={productMap} tableMap={tableMap} isOverlay />
+            ) : null}
+          </DragOverlay>
+        </DndContext>
       </div>
     </div>
   );
