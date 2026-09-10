@@ -33,6 +33,17 @@ export default function PosLayout({ children }: { children: React.ReactNode }) {
     }
   }, [user, setUser, setRestaurant]);
 
+  
+  const [theme, setTheme] = useState<'light' | 'dark'>('dark');
+
+  useEffect(() => {
+    if (document.documentElement.classList.contains('dark')) {
+      setTheme('dark');
+    } else {
+      setTheme('light');
+    }
+  }, []);
+
   if (isLoading) return (
     <div className="h-dvh flex items-center justify-center bg-background">
       <span className="mono text-[#444] text-sm animate-pulse tracking-widest">
@@ -46,15 +57,7 @@ export default function PosLayout({ children }: { children: React.ReactNode }) {
   const isAdmin = user.role === "ADMIN";
 
 
-  const [theme, setTheme] = useState<'light' | 'dark'>('dark');
-
-  useEffect(() => {
-    if (document.documentElement.classList.contains('dark')) {
-      setTheme('dark');
-    } else {
-      setTheme('light');
-    }
-  }, []);
+  
 
   const toggleTheme = () => {
     if (theme === 'dark') {
