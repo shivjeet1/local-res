@@ -81,8 +81,8 @@ export default function PosLayout({ children }: { children: React.ReactNode }) {
       {/* ── Navigation (Sidebar on Desktop, Bottom Bar on Mobile) ─────────────────────────────── */}
       <nav
         className="
-          flex bg-surface-1 border-border z-50
-          md:relative md:w-14 md:h-full md:flex-col md:items-center md:py-4 md:gap-1 md:border-r md:border-t-0 flex-shrink-0
+          flex bg-surface-1 border-border z-50 flex-shrink-0
+          md:static md:w-[80px] md:h-full md:flex-col md:items-center md:py-6 md:gap-4 md:border-r md:border-t-0
           w-full h-14 flex-row items-center justify-around border-t fixed bottom-0 left-0
         "
         style={{ borderColor: "var(--border)", background: "var(--surface-1)" }}
