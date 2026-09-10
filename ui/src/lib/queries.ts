@@ -326,7 +326,7 @@ export function useCreateUserMutation() {
   
   return useMutation({
     mutationFn: async (payload: any) => {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000"}/admin/users`, {
+      const res = await fetch(`${typeof window !== "undefined" && !("__TAURI_INTERNALS__" in window) ? `${window.location.protocol}//${window.location.hostname}:4000` : (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000")}/admin/users`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "Authorization": `Bearer ${jwt}` },
         body: JSON.stringify(payload)

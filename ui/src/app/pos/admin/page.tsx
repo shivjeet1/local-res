@@ -72,7 +72,7 @@ function ReportTab() {
   );
 
   async function handleExportCSV() {
-    const url = `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000"}/admin/reports/export?date=${today}`;
+    const url = `${typeof window !== "undefined" && !("__TAURI_INTERNALS__" in window) ? `${window.location.protocol}//${window.location.hostname}:4000` : (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000")}/admin/reports/export?date=${today}`;
     const res = await fetch(url, { headers: { "Authorization": `Bearer ${jwt}` } });
     if (!res.ok) return alert("Failed to export CSV");
     

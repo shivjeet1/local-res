@@ -162,7 +162,9 @@ export interface AdminUser {
 // aggregated reports across all devices' synced data). The JWT from the store
 // is passed as a Bearer token.
 
-const HTTP_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+const HTTP_BASE = typeof window !== "undefined" && !("__TAURI_INTERNALS__" in window) 
+  ? `${window.location.protocol}//${window.location.hostname}:4000` 
+  : (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000");
 
 async function apiFetch<T>(path: string, jwt: string, init?: RequestInit): Promise<T> {
   // In dev/browser mode with no real backend, compute mock results from

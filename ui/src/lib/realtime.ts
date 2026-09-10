@@ -20,8 +20,10 @@
 // establish (no backend running) and that's fine — the BroadcastChannel
 // layer from root cause 1 handles cross-tab sync in that case.
 
-const API_BASE = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001")
-  .replace(/^https?/, "ws")   // http:// → ws://, https:// → wss://
+const API_BASE = (typeof window !== "undefined" && !("__TAURI_INTERNALS__" in window) 
+  ? `${window.location.protocol}//${window.location.hostname}:4000` 
+  : (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000"))
+  .replace(/^https?/, "ws")
   .replace(/^tauri:/, "ws:");  // tauri://localhost → ws://localhost
 
 const RECONNECT_BASE_MS = 2_000;
