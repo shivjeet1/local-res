@@ -1,11 +1,12 @@
 ## Features
 
-- **Web-First Cross-Platform App**: Responsive Next.js frontend with dark mode and PWA support, alongside a native Tauri wrapper.
-- **Role-Based Access Control**: Secure JWT Authentication with distinct roles (Admin, Staff, Kitchen).
-- **Admin Management**: Dedicated admin tools for user management and exporting daily sales to CSV.
-- **GST Toggle**: Easily toggle GST calculations for individual orders directly from the POS cart.
-- **Multi-Tenant Security**: Enforces automatic multi-tenancy scoping and soft deletes using Prisma extensions.
-- **Monorepo Architecture**: Clean npm workspace structure sharing types and logic via `@local-res/shared`.
+- **Next-Gen UI/UX**: A beautiful, modern Next.js frontend with dark mode, subtle animations, and PWA offline-first support.
+- **Role-Based Interface Adaptation**: Smart, role-specific navigation and layout switching (Admin Sidebar, Staff Top-Nav, Kitchen Full-Screen).
+- **Advanced Admin Analytics Dashboard**: Real-time sales metrics, Recharts-powered 7-day revenue trend graphs, and top items list with one-tap CSV export.
+- **Kanban Kitchen Display System (KDS)**: Real-time, drag-and-drop full-screen KDS optimized for tablets, featuring live ticket age tracking and color-coded urgency alerts.
+- **GST Toggle**: Easily toggle GST calculations for individual orders directly from the POS cart with live recalculation and confirmation safeguards.
+- **Multi-Tenant Security**: Enforces automatic multi-tenancy scoping and soft deletes using Prisma extensions, strictly preserving data integrity.
+- **Monorepo Architecture**: Clean npm workspace structure sharing types and logic via `@local-res/shared` across backend, UI, and Tauri desktop apps.
 
 ## Quick Start
 
@@ -19,11 +20,16 @@ Run `npm install` at the root of the project to install and link all workspace d
 npm install
 ```
 
-### Cloud backend
+### Run the Full Stack (Docker Compose)
+
+Ensure you are in the **root** of the monorepo, then run:
 
 ```bash
+# Set up environment variables
 cp backend/.env.example backend/.env          
-docker compose up -d         
+
+# Spin up Postgres, Backend, and UI
+docker compose up -d --build         
 npm run db:migrate --workspace=backend
 npm run db:seed --workspace=backend
 ```
@@ -32,6 +38,25 @@ npm run db:seed --workspace=backend
 - Admin:   `admin@pos.dev`   / `admin1234`
 - Staff:   `staff@pos.dev`   / `staff1234`
 - Kitchen: `kitchen@pos.dev` / `kitchen1234`
+
+### Troubleshooting
+
+**Database Authentication Errors (`P1000`) or "incompatible with server" errors:**
+If you run `npm run db:migrate` and encounter a `P1000: Authentication failed against database server` error, or if the PostgreSQL container crashes due to version mismatches (e.g. `initialized by PostgreSQL version 15`), it means an older Docker volume with conflicting credentials or versions is cached on your machine.
+
+To fix this, tear down the containers and their volumes, then restart:
+
+```bash
+# 1. Stop containers and destroy the conflicting database volume
+docker compose down -v
+
+# 2. Spin everything back up
+docker compose up -d --build
+
+# 3. Re-run migrations and seed
+npm run db:migrate --workspace=backend
+npm run db:seed --workspace=backend
+```
 
 ### UI
 
