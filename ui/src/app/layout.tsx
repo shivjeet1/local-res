@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { Providers } from "./providers";
 
+import ToastContainer from "@/components/ToastContainer";
+
 export const metadata: Metadata = {
   title:       "POS Terminal",
   description: "Restaurant Point of Sale",
@@ -28,6 +30,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body>
         <Providers>{children}</Providers>
+        <ToastContainer />
       </body>
     </html>
   );

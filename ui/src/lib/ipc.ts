@@ -223,8 +223,14 @@ function devMockHttp<T>(path: string, method: string): T {
   throw new Error(`devMockHttp: unhandled path ${method} ${path}`);
 }
 
+export const fetchDashboardReport = (jwt: string): Promise<any> =>
+  apiFetch<any>("/admin/reports/dashboard", jwt);
+
 export const fetchDailyReport = (jwt: string, date?: string): Promise<DailyReport> =>
   apiFetch<DailyReport>(`/admin/reports/daily${date ? `?date=${date}` : ""}`, jwt);
+
+export const createAdminUser = (data: any, jwt: string): Promise<AdminUser> =>
+  apiFetch<AdminUser>("/admin/users", jwt, { method: "POST", body: JSON.stringify(data) });
 
 export const listAdminUsers = (jwt: string): Promise<AdminUser[]> =>
   apiFetch<AdminUser[]>("/admin/users", jwt);

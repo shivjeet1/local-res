@@ -6,6 +6,7 @@ import * as ipc from "./ipc";
 import { usePosStore } from "./store";
 import { onDevMockChange } from "./ipc";
 import { connectRealtime, disconnectRealtime, onRealtimeChange, onOrderReady } from "./realtime";
+import { toast } from "./toast";
 
 export const QK = {
   menu:        (rid: string) => ["menu", rid]           as const,
@@ -19,11 +20,6 @@ export const QK = {
  * Subscribes to both cross-tab mock changes (BroadcastChannel, dev mode) and
  * real-time backend push notifications (WebSocket, production) and invalidates
  * the open-orders/menu queries immediately when either fires.
- *
- * The two paths cover complementary scenarios:
- *   - Dev/browser mode (no real backend): BroadcastChannel keeps all tabs in sync
- *   - Production Tauri: WebSocket push channel from the backend keeps all
- *     terminals in sync within ~1s of a write
  */
 export function useDevMockSync() {
   const qc           = useQueryClient();
@@ -42,11 +38,7 @@ export function useDevMockSync() {
 }
 
 /**
- * Fires `onReady()` whenever the backend pushes an "order_ready" event —
- * i.e. kitchen just marked an order as READY. The caller is responsible for
- * showing a toast and playing a sound. Lives here (rather than inline in the
- * page) so the subscription is set up once at the component tree level,
- * regardless of which specific component renders the notification UI.
+ * Fires `onReady()` whenever the backend pushes an "order_ready" event
  */
 export function useOrderReadyNotification(onReady: () => void) {
   useEffect(() => {
@@ -90,12 +82,12 @@ export function useLoginMutation() {
       setRestaurant(user.restaurantId);
       setJwt(token);
       qc.setQueryData(QK.currentUser(), user);
-      // Start the WebSocket push connection if we got a cloud JWT.
-      // Falls back silently in dev-mock mode where token is null.
-      if (token) {
-        connectRealtime(token, deviceId);
-      }
+      if (token) connectRealtime(token, deviceId);
+      toast.success(`Welcome back, ${user.email}`);
     },
+    onError: (err: any) => {
+      toast.error(err.message || "Login failed");
+    }
   });
 }
 
@@ -109,6 +101,7 @@ export function useLogoutMutation() {
       disconnectRealtime();
       clearSession();
       qc.clear();
+      toast.info("Logged out successfully");
     },
   });
 }
@@ -125,12 +118,6 @@ export function useMenu() {
   });
 }
 
-// ── Tables ────────────────────────────────────────────────────────────────────
-
-/**
- * Restaurant tables change rarely (added/renamed by an admin, not part of the
- * order flow), so this is cached aggressively — same staleTime as menu data.
- */
 export function useTables() {
   const restaurantId = usePosStore((s) => s.restaurantId) ?? "";
   return useQuery({
@@ -147,7 +134,11 @@ export function useCreateProductMutation() {
   return useMutation({
     mutationFn: (payload: ipc.CreateProductPayload) =>
       ipc.createProduct(restaurantId, payload),
-    onSuccess: () => qc.invalidateQueries({ queryKey: QK.menu(restaurantId) }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: QK.menu(restaurantId) });
+      toast.success("Product created successfully");
+    },
+    onError: (err: any) => toast.error(err.message || "Failed to create product")
   });
 }
 
@@ -156,7 +147,11 @@ export function useDeleteProductMutation() {
   const restaurantId = usePosStore((s) => s.restaurantId ?? "");
   return useMutation({
     mutationFn: (id: string) => ipc.deleteProduct(id),
-    onSuccess:  () => qc.invalidateQueries({ queryKey: QK.menu(restaurantId) }),
+    onSuccess:  () => {
+      qc.invalidateQueries({ queryKey: QK.menu(restaurantId) });
+      toast.info("Product deleted");
+    },
+    onError: (err: any) => toast.error(err.message || "Failed to delete product")
   });
 }
 
@@ -196,7 +191,9 @@ export function useCreateOrderMutation() {
     onSuccess: (order) => {
       qc.invalidateQueries({ queryKey: QK.openOrders(restaurantId) });
       qc.setQueryData(QK.order(order.id), order);
+      toast.success("New order created");
     },
+    onError: (err: any) => toast.error(err.message || "Failed to create order")
   });
 }
 
@@ -215,6 +212,7 @@ export function useAddItemMutation() {
       qc.invalidateQueries({ queryKey: QK.openOrders(restaurantId) });
       qc.setQueryData(QK.order(order.id), order);
     },
+    onError: (err: any) => toast.error(err.message || "Failed to add item")
   });
 }
 
@@ -242,7 +240,9 @@ export function useUpdateStatusMutation() {
     onSuccess: (order) => {
       qc.setQueryData(QK.order(order.id), order);
       qc.invalidateQueries({ queryKey: QK.openOrders(restaurantId) });
+      toast.success(`Order status updated to ${order.status.replace(/_/g, " ")}`);
     },
+    onError: (err: any) => toast.error(err.message || "Failed to update status")
   });
 }
 
@@ -256,6 +256,7 @@ export function useToggleGstMutation() {
     onSuccess: (order) => {
       qc.setQueryData(QK.order(order.id), order);
       qc.invalidateQueries({ queryKey: QK.openOrders(restaurantId) });
+      toast.info(`GST ${order.applyGst ? "applied" : "removed"}`);
     },
   });
 }
@@ -269,7 +270,9 @@ export function useVoidOrderMutation() {
     onSuccess: (_, orderId) => {
       qc.removeQueries({ queryKey: QK.order(orderId) });
       qc.invalidateQueries({ queryKey: QK.openOrders(restaurantId) });
+      toast.info("Order voided successfully");
     },
+    onError: (err: any) => toast.error(err.message || "Failed to void order")
   });
 }
 
@@ -286,18 +289,28 @@ export function useSyncMutation() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: QK.menu(restaurantId) });
       qc.invalidateQueries({ queryKey: QK.openOrders(restaurantId) });
+      toast.success("Sync completed");
     },
+    onError: (err: any) => toast.error(err.message || "Sync failed")
   });
 }
 
 // ── Admin ─────────────────────────────────────────────────────────────────────
+
+export function useDashboardReport() {
+  const jwt = usePosStore((s) => s.jwt);
+  return useQuery({
+    queryKey: ["dashboardReport"],
+    queryFn: () => ipc.fetchDashboardReport(jwt!),
+    enabled: !!jwt,
+  });
+}
 
 export function useDailyReport(date?: string) {
   const jwt = usePosStore((s) => s.jwt ?? "");
   return useQuery({
     queryKey:  ["admin", "report", date ?? "today"],
     queryFn:   () => ipc.fetchDailyReport(jwt, date),
-    // Refetch every minute so totals stay current as orders are paid
     refetchInterval: 60_000,
   });
 }
@@ -316,7 +329,11 @@ export function useDeleteUserMutation() {
   const qc  = useQueryClient();
   return useMutation({
     mutationFn: (userId: string) => ipc.deleteAdminUser(jwt, userId),
-    onSuccess:  () => qc.invalidateQueries({ queryKey: ["admin", "users"] }),
+    onSuccess:  () => {
+      qc.invalidateQueries({ queryKey: ["admin", "users"] });
+      toast.success("User deleted successfully");
+    },
+    onError: (err: any) => toast.error(err.message || "Failed to delete user")
   });
 }
 
@@ -337,6 +354,8 @@ export function useCreateUserMutation() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin", "users"] });
-    }
+      toast.success("User created successfully");
+    },
+    onError: (err: any) => toast.error(err.message || "Failed to create user")
   });
 }
