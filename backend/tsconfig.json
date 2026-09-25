@@ -12,7 +12,10 @@
     "forceConsistentCasingInFileNames": true,
     "skipLibCheck":    true,
     "declaration":     true,
-    "sourceMap":       true
+    "sourceMap":       true,
+    "paths": {
+      "@local-res/shared": ["../packages/shared/src/index.js", "../packages/shared/src/index.ts"]
+    }
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist"]

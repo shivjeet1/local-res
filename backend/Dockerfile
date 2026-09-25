@@ -1,4 +1,4 @@
-FROM node:20-alpine AS builder
+FROM node:20-alpine AS base
 WORKDIR /app
 
 RUN apk add --no-cache openssl
@@ -7,13 +7,18 @@ COPY backend/package*.json backend/
 COPY ui/package*.json ui/
 COPY tauri/package*.json tauri/
 COPY packages/shared/package*.json packages/shared/
-RUN npm ci
+RUN npm i
 
 COPY . .
 RUN mkdir -p /app/backend/node_modules
 RUN cd backend && npx prisma generate
-RUN npm run build --workspace=backend
+
+FROM base AS dev
+CMD ["sh", "-c", "cd backend && npx prisma migrate deploy && npm run dev"]
+
+FROM base AS builder
 RUN npm run build --workspace=@local-res/shared
+RUN npm run build --workspace=backend
 
 FROM node:20-alpine AS runner
 WORKDIR /app

@@ -25,6 +25,7 @@ services:
     build:
       context: ../
       dockerfile: backend/Dockerfile
+      target: dev
     restart: unless-stopped
     depends_on:
       postgres:
@@ -33,10 +34,16 @@ services:
       DATABASE_URL:      postgresql://postgres:password@postgres:5432/pos_db
       JWT_SECRET:        ${JWT_SECRET:-change-me-for-production}
       PORT:              4000
-      NODE_ENV:          production
+      NODE_ENV:          development
       ALLOWED_ORIGINS:   tauri://localhost
     ports:
       - "4000:4000"
+    volumes:
+      - ../backend/src:/app/backend/src
+      - ../backend/prisma:/app/backend/prisma
+      - ../packages/shared/src:/app/packages/shared/src
+    command: >
+      sh -c "cd backend && npx prisma migrate deploy && npx tsx src/prisma/seed.ts || true && npm run dev"
 
 volumes:
   pgdata:
