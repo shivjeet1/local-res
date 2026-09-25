@@ -16,7 +16,7 @@ node_modules/
 dist/
 build/
 coverage/
-*-lock.json
+*lock.json
 
 # Next.js
 .next/
