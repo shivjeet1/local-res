@@ -16,17 +16,19 @@ export default function ToastContainer() {
           return (
             <motion.div
               key={toast.id}
-              initial={{ opacity: 0, x: 100, scale: 0.95 }}
-              animate={{ opacity: 1, x: 0, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95, y: -20 }}
-              transition={{ duration: 0.3, type: "spring", bounce: 0.4 }}
+              initial={{ opacity: 0, x: "100%" }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: "100%" }}
+              whileHover={{ scale: 1.03, x: -5 }}
+              whileTap={{ scale: 0.97 }}
+              transition={{ duration: 0.3, type: "spring", bounce: 0.2 }}
               onClick={() => removeToast(toast.id)}
-              className={`group pointer-events-auto cursor-pointer font-mono text-[11px] font-bold tracking-widest px-6 py-4 rounded-xl transition-colors duration-300 flex items-center gap-3 shadow-2xl backdrop-blur-xl border hover:shadow-[0_0_20px_rgba(0,255,136,0.2)] ${
+              className={`group pointer-events-auto cursor-pointer font-mono text-[11px] font-bold tracking-widest px-6 py-4 rounded-xl transition-colors duration-300 flex items-center gap-3 shadow-2xl backdrop-blur-xl border ${
                 isError 
-                  ? "bg-red-500/10 border-red-500/30 text-red-500 hover:bg-gradient-to-r hover:from-red-500/20 hover:to-transparent" 
+                  ? "bg-red-500/10 border-red-500/30 text-red-500" 
                   : isSuccess 
-                    ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-500 hover:bg-gradient-to-r hover:from-accent/20 hover:to-transparent" 
-                    : "bg-surface-2/80 border-border text-foreground hover:bg-gradient-to-r hover:from-accent/20 hover:to-transparent hover:border-accent/50"
+                    ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-500" 
+                    : "bg-surface-2/80 border-border text-foreground"
               }`}
             >
               {isSuccess && (

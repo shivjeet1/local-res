@@ -67,10 +67,6 @@ export default function LandingPage() {
               <svg className="w-5 h-5 relative z-10 text-black transition-transform group-hover:translate-x-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
               <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:animate-[shimmer_1.5s_infinite]" />
             </Link>
-            <button className="relative group w-full sm:w-auto px-8 py-4 rounded-2xl bg-surface-2 border border-border font-bold text-lg overflow-hidden transition-all hover:-translate-y-1 hover:border-accent/50 hover:bg-surface-3 hover:shadow-[0_0_20px_rgba(0,255,136,0.15)] active:translate-y-0 flex items-center justify-center gap-2">
-              <span className="relative z-10">View Demo</span>
-              <div className="absolute inset-0 bg-gradient-to-r from-accent/0 via-accent/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-            </button>
           </div>
         </section>
 

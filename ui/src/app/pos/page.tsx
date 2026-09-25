@@ -222,14 +222,14 @@ function MenuPanel({ onClearActiveId, onAddItem, activeOrderId, setShowCartOnMob
           <button key={product.id}
             onClick={() => canAdd && activeOrderId && onAddItem(product)}
             disabled={!canAdd || !activeOrderId}
-            className="text-left p-4 rounded-xl transition-all flex flex-col justify-between h-full group focus:outline-none focus:ring-2 focus:ring-accent"
+            className="text-left p-4 rounded-xl transition-all flex flex-col justify-between h-full group focus:outline-none focus:ring-2 focus:ring-accent fade-up"
             style={{
               background: "var(--surface-1)",
               border: "1px solid var(--border)",
               boxShadow: "0 2px 4px rgba(0,0,0,0.02)",
               opacity: (!canAdd || !activeOrderId) ? 0.5 : 1,
               cursor: (!canAdd || !activeOrderId) ? "not-allowed" : "pointer",
-              animation: `fade-up 0.3s ease-out ${i * 0.03}s both`
+              animationDelay: `${i * 0.04}s`
             }}
             onMouseEnter={e => {
               if (canAdd && activeOrderId) {
