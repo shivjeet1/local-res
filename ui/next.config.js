@@ -8,6 +8,7 @@ const nextConfig = {
   images:    { unoptimized: true },
   eslint:    { ignoreDuringBuilds: true },
   typescript:{ ignoreBuildErrors: false },
+  transpilePackages: ['@local-res/shared'],
 };
 
 module.exports = nextConfig;
