@@ -25,6 +25,7 @@ services:
     build:
       context: .
       dockerfile: backend/Dockerfile
+      target: dev
     container_name: local-res-backend
     environment:
       - DATABASE_URL=postgresql://postgres:password123@postgres:5432/local_res_db?schema=public
@@ -32,19 +33,24 @@ services:
       - JWT_SECRET=${JWT_SECRET:-production_ready_secret_key_999}
     ports:
       - "4000:4000"
+    volumes:
+      - ./backend/src:/app/backend/src
+      - ./backend/prisma:/app/backend/prisma
+      - ./packages/shared/src:/app/packages/shared/src
     depends_on:
       postgres:
         condition: service_healthy
     networks:
       - pos-network
     command: >
-      sh -c "cd backend && npx prisma migrate deploy && node dist/prisma/seed.js || true && node dist/app.js"
+      sh -c "cd backend && npx prisma migrate deploy && npx tsx src/prisma/seed.ts || true && npm run dev"
 
   # 3. UI Service (Next.js)
   ui:
     build:
       context: .
       dockerfile: ui/Dockerfile
+      target: dev
       args:
         - NEXT_PUBLIC_API_URL=http://localhost:4000
     container_name: local-res-ui
@@ -52,6 +58,14 @@ services:
       - NEXT_PUBLIC_API_URL=http://localhost:4000
     ports:
       - "3000:3000"
+    volumes:
+      - ./ui/src:/app/ui/src
+      - ./ui/public:/app/ui/public
+      - ./ui/tailwind.config.ts:/app/ui/tailwind.config.ts
+      - ./ui/postcss.config.js:/app/ui/postcss.config.js
+      - ./ui/next.config.js:/app/ui/next.config.js
+      - ./ui/tsconfig.json:/app/ui/tsconfig.json
+      - ./packages/shared/src:/app/packages/shared/src
     depends_on:
       - backend
     networks:
