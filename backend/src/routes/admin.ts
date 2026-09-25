@@ -159,4 +159,108 @@ export async function adminRoutes(app: FastifyInstance) {
       },
     });
   });
+
+  // GET /admin/reports/dashboard — Comprehensive dashboard data
+  app.get("/reports/dashboard", { preHandler: requireRole("ADMIN") }, async (req, reply) => {
+    const { restaurantId } = req.jwtPayload!;
+    
+    const now = new Date();
+    const todayStart = new Date(now); todayStart.setHours(0,0,0,0);
+    const todayEnd = new Date(now); todayEnd.setHours(23,59,59,999);
+    
+    // 7 days ago
+    const weekStart = new Date(now); weekStart.setDate(weekStart.getDate() - 6);
+    weekStart.setHours(0,0,0,0);
+
+    // 1. Today's totals
+    const todayStats = await prisma.order.aggregate({
+      where: {
+        restaurantId,
+        status: "COMPLETED",
+        paidAt: { gte: todayStart, lte: todayEnd },
+        deletedAt: null,
+      },
+      _sum: { totalCents: true },
+      _count: { id: true },
+    });
+
+    const revenue = todayStats._sum.totalCents ?? 0;
+    const orderCount = todayStats._count.id;
+    const averageOrderValue = orderCount > 0 ? Math.floor(revenue / orderCount) : 0;
+
+    // 2. Active orders count
+    const activeOrders = await prisma.order.count({
+      where: {
+        restaurantId,
+        status: { in: ["OPEN", "SENT_TO_KITCHEN", "READY"] },
+        deletedAt: null,
+      }
+    });
+
+    // 3. Trend chart (Last 7 days)
+    const weekOrders = await prisma.order.findMany({
+      where: {
+        restaurantId,
+        status: "COMPLETED",
+        paidAt: { gte: weekStart, lte: todayEnd },
+        deletedAt: null,
+      },
+      select: { paidAt: true, totalCents: true }
+    });
+
+    const trendMap = new Map<string, number>();
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(weekStart);
+      d.setDate(d.getDate() + i);
+      trendMap.set(d.toISOString().split("T")[0]!, 0);
+    }
+    
+    for (const order of weekOrders) {
+      if (order.paidAt) {
+        const dStr = order.paidAt.toISOString().split("T")[0]!;
+        if (trendMap.has(dStr)) {
+          trendMap.set(dStr, trendMap.get(dStr)! + order.totalCents);
+        }
+      }
+    }
+
+    const trend = Array.from(trendMap.entries()).map(([date, total]) => ({ date, total }));
+
+    // 4. Top 5 items today
+    const todayOrderItems = await prisma.orderItem.findMany({
+      where: {
+        order: {
+          restaurantId,
+          status: "COMPLETED",
+          paidAt: { gte: todayStart, lte: todayEnd },
+          deletedAt: null,
+        },
+        deletedAt: null,
+      },
+      include: { product: true }
+    });
+
+    const itemCounts = new Map<string, { name: string; qty: number; revenue: number }>();
+    for (const item of todayOrderItems) {
+      if (!itemCounts.has(item.productId)) {
+        itemCounts.set(item.productId, { name: item.product.name, qty: 0, revenue: 0 });
+      }
+      const entry = itemCounts.get(item.productId)!;
+      entry.qty += item.quantity;
+      entry.revenue += item.quantity * item.unitPriceCents;
+    }
+
+    const topItems = Array.from(itemCounts.values())
+      .sort((a, b) => b.qty - a.qty)
+      .slice(0, 5);
+
+    return reply.send({
+      success: true,
+      data: {
+        today: { revenue, orderCount, averageOrderValue, activeOrders },
+        trend,
+        topItems
+      }
+    });
+  });
 }
